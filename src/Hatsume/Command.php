@@ -3,7 +3,6 @@
 namespace SlimeSystems\Hatsume;
 
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
 use LogicException;
 
 trait Command {

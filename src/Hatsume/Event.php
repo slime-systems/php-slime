@@ -3,7 +3,6 @@
 namespace SlimeSystems\Hatsume;
 
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
 
 trait Event {
   public readonly array $data;
@@ -23,10 +22,10 @@ trait Event {
     $rules = static::rules();
 
     if (!empty($rules)) {
-      // Validator::validate() throws ValidationException on failure
-      $data = Validator::make($data, $rules)->validate();
+      $validator = Validator::make($data, $rules);
+      if ($validator->fails()) throw new ValidationException($validator);
+      $data = $validator->validated();
     }
-
     return new static($data, $metadata);
   }
 
