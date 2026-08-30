@@ -1,28 +1,17 @@
 <?php
 
-namespace SlimeSystems;
+namespace SlimeSystems\Hatsume;
 
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
-trait Event
-{
+trait Event {
   public readonly array $data;
   public readonly mixed $metadata;
 
-  public function __construct(array $data = [], mixed $metadata = null)
-  {
+  public function __construct(array $data = [], mixed $metadata = null) {
     $this->data = $data;
     $this->metadata = $metadata;
-  }
-
-  /**
-   * Define validation rules for the event payload.
-   * Override this method in event classes that require validation.
-   */
-  protected static function rules(): array
-  {
-    return [];
   }
 
   /**
@@ -30,8 +19,7 @@ trait Event
    *
    * @throws ValidationException
    */
-  public static function strict(array $data = [], mixed $metadata = null): static
-  {
+  public static function strict(array $data = [], mixed $metadata = null): static {
     $rules = static::rules();
 
     if (!empty($rules)) {
@@ -40,5 +28,13 @@ trait Event
     }
 
     return new static($data, $metadata);
+  }
+
+  /**
+   * Define validation rules for the event payload.
+   * Override this method in event classes that require validation.
+   */
+  protected static function rules(): array {
+    return [];
   }
 }
