@@ -3,13 +3,12 @@
 namespace SlimeSystems\Hatsume;
 
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Database\Eloquent\Model;
 
 trait Command {
   protected ?array $validatedCache = null;
 
-  public function offsetExists(mixed $key): bool {
-    return array_key_exists($key, $this->validatedAttributes());
-  }
+  abstract protected function rules(): array;
 
   public function validatedAttributes(): array {
     if ($this->validatedCache !== null) {
@@ -29,22 +28,29 @@ trait Command {
   }
 
   public function attributes(): array {
-    return get_object_vars($this);
+    $vars = get_object_vars($this);
+    unset($vars['validatedCache']);
+
+    return $vars;
   }
 
-  // --- ArrayAccess Methods (Delegates [] to validatedAttributes) ---
+  // --- ArrayAccess Methods ---
 
-  abstract protected function rules(): array;
-
-  public function offsetGet(mixed $key): mixed {
-    return $this->validatedAttributes()[$key] ?? null;
+  public function offsetExists(mixed $offset): bool {
+    return array_key_exists($offset, $this->validatedAttributes());
   }
 
-  public function offsetSet(): void {
+  public function offsetGet(mixed $offset): mixed {
+    return $this->validatedAttributes()[$offset] ?? null;
+  }
+
+  /** @noinspection PhpUnusedParameterInspection */
+  public function offsetSet(mixed $_offset, mixed $_value): void {
     throw new NotImplemented('Validated attributes are immutable.');
   }
 
-  public function offsetUnset(): void {
+  /** @noinspection PhpUnusedParameterInspection */
+  public function offsetUnset(mixed $_offset): void {
     throw new NotImplemented('Validated attributes are immutable.');
   }
 }
