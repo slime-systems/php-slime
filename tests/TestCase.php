@@ -1,0 +1,47 @@
+<?php
+
+namespace SlimeSystems\Tests;
+
+use Illuminate\Container\Container;
+use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Facade;
+use Illuminate\Translation\ArrayLoader;
+use Illuminate\Translation\Translator;
+use Illuminate\Validation\Factory as ValidationFactory;
+use PHPUnit\Framework\TestCase as BaseTestCase;
+
+abstract class TestCase extends BaseTestCase
+{
+    protected Container $app;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->setUpContainer();
+    }
+
+    protected function setUpContainer(): void
+    {
+        $this->app = new Container();
+        Container::setInstance($this->app);
+        Facade::setFacadeApplication($this->app);
+
+        $this->app->singleton('files', fn () => new Filesystem());
+        $this->app->singleton('translator', function () {
+            $loader = new ArrayLoader();
+            return new Translator($loader, 'en');
+        });
+        $this->app->singleton('validator', function ($app) {
+            return new ValidationFactory($app['translator'], $app);
+        });
+    }
+
+    protected function tearDown(): void
+    {
+        Facade::setFacadeApplication(null);
+        Container::setInstance(null);
+
+        parent::tearDown();
+    }
+}

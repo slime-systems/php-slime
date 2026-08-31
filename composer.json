@@ -1,19 +1,35 @@
 {
     "name": "slime-systems/php-slime",
     "type": "library",
+    "license": "BSD-3-Clause-Attribution",
+    "authors": [
+        {
+            "name": "Sarun Rattanasiri"
+        }
+    ],
     "require": {
         "illuminate/support": ">=10.0",
         "illuminate/validation": ">=10.0"
     },
-    "license": "BSD-3-Clause-Attribution",
+    "require-dev": {
+        "pestphp/pest": "^5.1"
+    },
     "autoload": {
         "psr-4": {
             "SlimeSystems\\": "src/"
         }
     },
-    "authors": [
-        {
-            "name": "Sarun Rattanasiri"
+    "autoload-dev": {
+        "psr-4": {
+            "SlimeSystems\\Tests\\": "tests/"
         }
-    ]
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "scripts": {
+        "test": "pest"
+    }
 }
