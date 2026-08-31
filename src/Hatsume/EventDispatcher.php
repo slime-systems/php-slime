@@ -2,17 +2,15 @@
 
 namespace SlimeSystems\Hatsume;
 
-use Closure;
-use SlimeSystems\Internal\WrapsHandlers;
-
 readonly class EventDispatcher {
-  use WrapsHandlers;
-
-  /** @var Closure */
+  /** @var list<callable(mixed, array<string, mixed>=): void> */
   private array $handlers;
 
+  /**
+   * @param callable(mixed, array<string, mixed>=): void ...$handlers
+   */
   public function __construct(callable ...$handlers) {
-    $this->handlers = array_map($this->wrapHandler(...), $handlers);
+    $this->handlers = array_values($handlers);
   }
 
   /**

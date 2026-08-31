@@ -2,10 +2,9 @@
 
 namespace SlimeSystems\Hatsume;
 
-use LogicException;
 use Throwable;
 
-class UnknownCommand extends LogicException {
+class UnknownCommand extends NotImplemented {
   public function __construct(
     public readonly string $command,
     int                    $code = 0,

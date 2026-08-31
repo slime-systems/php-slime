@@ -3,7 +3,6 @@
 namespace SlimeSystems\Hatsume;
 
 use Illuminate\Support\Facades\Validator;
-use LogicException;
 
 trait Command {
   protected ?array $validatedCache = null;
@@ -41,11 +40,11 @@ trait Command {
     return $this->validatedAttributes()[$key] ?? null;
   }
 
-  public function offsetSet(mixed $offset, mixed $value): void {
-    throw new LogicException('Validated attributes are immutable.');
+  public function offsetSet(): void {
+    throw new NotImplemented('Validated attributes are immutable.');
   }
 
-  public function offsetUnset(mixed $offset): void {
-    throw new LogicException('Validated attributes are immutable.');
+  public function offsetUnset(): void {
+    throw new NotImplemented('Validated attributes are immutable.');
   }
 }

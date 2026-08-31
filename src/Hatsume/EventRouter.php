@@ -2,20 +2,13 @@
 
 namespace SlimeSystems\Hatsume;
 
-use Closure;
-use SlimeSystems\Internal\WrapsHandlers;
-
 readonly class EventRouter {
-  use WrapsHandlers;
-
-  /** @var Closure */
-  private array $handlersMap;
-
   /**
-   * @param array<class-string, callable> $handlersMap
+   * @param array<class-string, callable(object, array<string, mixed>=): void> $handlersMap
    */
-  public function __construct(array $handlersMap = []) {
-    $this->handlersMap = array_map($this->wrapHandler(...), $handlersMap);
+  public function __construct(
+    private array $handlersMap = []
+  ) {
   }
 
   /**
