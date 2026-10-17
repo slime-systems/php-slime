@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use SlimeSystems\Eloquent\EventType;
 use SlimeSystems\Eloquent\StateType;
 use SlimeSystems\Eloquent\StoredEvent;
 use SlimeSystems\Hatsume\Event;
@@ -18,10 +19,15 @@ class StoredTestTransitoryEvent implements TransitoryEvent {
 describe('StoredEvent Eloquent Model', function () {
     beforeEach(function () {
         Schema::dropIfExists('stored_events');
+        Schema::dropIfExists('event_types');
         Schema::dropIfExists('state_types');
 
         Schema::create('state_types', function ($table) {
             StateType::createBlueprint($table);
+        });
+
+        Schema::create('event_types', function ($table) {
+            EventType::createBlueprint($table);
         });
 
         Schema::create('stored_events', function ($table) {
@@ -29,12 +35,13 @@ describe('StoredEvent Eloquent Model', function () {
         });
 
         StateType::clearCache();
+        EventType::clearCache();
     });
 
     test('createBlueprint sets up table with primary key and indexes', function () {
         expect(Schema::hasTable('stored_events'))->toBeTrue()
             ->and(Schema::hasColumns('stored_events', [
-                'type_id', 'state_id', 'position', 'event_class', 'data', 'metadata', 'occurred_at',
+                'type_id', 'state_id', 'position', 'event_type_id', 'data', 'metadata', 'occurred_at',
             ]))->toBeTrue();
     });
 
@@ -55,10 +62,13 @@ describe('StoredEvent Eloquent Model', function () {
 
         expect($records)->toHaveCount(2)
             ->and($records[0]->position)->toBe(1)
-            ->and($records[0]->event_class)->toBe(StoredTestDomainEvent::class)
+            ->and($records[0]->getEventTypeId())->toBe(1)
+            ->and($records[0]->getEventClass())->toBe(StoredTestDomainEvent::class)
             ->and($records[0]->data)->toBe(['amount' => 100])
             ->and($records[0]->metadata)->toBe(['source' => 'web'])
             ->and($records[1]->position)->toBe(2)
+            ->and($records[1]->getEventTypeId())->toBe(1)
+            ->and($records[1]->getEventClass())->toBe(StoredTestDomainEvent::class)
             ->and($records[1]->data)->toBe(['amount' => 200]);
     });
 

@@ -5,7 +5,6 @@ namespace SlimeSystems\Eloquent;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
@@ -17,7 +16,7 @@ use SlimeSystems\Hatsume\TransitoryEvent;
  * @property int $type_id
  * @property string|int $state_id
  * @property int $position
- * @property string $event_class
+ * @property int $event_type_id
  * @property array<string, mixed> $data
  * @property array<string, mixed>|null $metadata
  * @property Carbon|null $occurred_at
@@ -52,19 +51,11 @@ class StoredEvent extends Model {
   public $timestamps = false;
 
   /**
-   * The attributes that are mass assignable.
+   * The attributes that aren't mass assignable.
    *
    * @var list<string>
    */
-  protected $fillable = [
-    'type_id',
-    'state_id',
-    'position',
-    'event_class',
-    'data',
-    'metadata',
-    'occurred_at',
-  ];
+  protected $guarded = [];
 
   /**
    * The attributes that should be cast.
@@ -74,6 +65,7 @@ class StoredEvent extends Model {
   protected $casts = [
     'type_id' => 'integer',
     'position' => 'integer',
+    'event_type_id' => 'integer',
     'data' => \SlimeSystems\Eloquent\Casts\MessagePackCast::class,
     'metadata' => \SlimeSystems\Eloquent\Casts\MessagePackCast::class,
     'occurred_at' => 'datetime',
@@ -86,13 +78,13 @@ class StoredEvent extends Model {
     $table->unsignedInteger('type_id');
     $table->string('state_id');
     $table->unsignedBigInteger('position');
-    $table->string('event_class');
+    $table->unsignedInteger('event_type_id');
     $table->binary('data');
     $table->binary('metadata')->nullable();
     $table->timestamp('occurred_at', 6)->nullable();
 
     $table->primary(['type_id', 'state_id', 'position']);
-    $table->index(['occurred_at', 'event_class']);
+    $table->index(['occurred_at', 'event_type_id']);
   }
 
   /**
@@ -121,23 +113,38 @@ class StoredEvent extends Model {
     ];
   }
 
+
   /**
-   * Relationship to the StateType model.
-   *
-   * @return BelongsTo<StateType, $this>
+   * Convenience getter for event_type_id.
    */
-  public function type(): BelongsTo {
-    return $this->belongsTo(StateType::class, 'type_id');
+  public function getEventTypeId(): int {
+    return (int) $this->getAttribute('event_type_id');
+  }
+
+  /**
+   * Convenience getter for string event class name resolved from EventType.
+   */
+  public function getEventClass(): ?string {
+    $eventTypeId = $this->getAttribute('event_type_id');
+    return $eventTypeId !== null ? EventType::nameFor((int) $eventTypeId) : null;
+  }
+
+  /**
+   * Convenience getter for string state type name resolved from StateType.
+   */
+  public function getTypeName(): ?string {
+    $typeId = $this->getAttribute('type_id');
+    return $typeId !== null ? StateType::nameFor((int) $typeId) : null;
   }
 
   /**
    * Reconstitutes the stored event into its original domain event instance.
    */
   public function toEvent(): object {
-    /** @var class-string $class */
-    $class = (string) $this->getAttribute('event_class');
-    if (!class_exists($class)) {
-      throw new RuntimeException(sprintf('Event class "%s" does not exist for replay.', $class));
+    /** @var class-string|null $class */
+    $class = $this->getEventClass();
+    if ($class === null || !class_exists($class)) {
+      throw new RuntimeException(sprintf('Event class "%s" does not exist for replay.', $class ?? 'null'));
     }
 
     $data = $this->getAttribute('data') ?? [];
@@ -204,7 +211,7 @@ class StoredEvent extends Model {
         'type_id' => $typeId,
         'state_id' => $stateId,
         'position' => $startPosition + $offset,
-        'event_class' => $event::class,
+        'event_type_id' => EventType::idFor($event::class),
         'data' => MessagePackSerializer::pack($eventData),
         'metadata' => $eventMetadata !== null ? MessagePackSerializer::pack($eventMetadata) : null,
         'occurred_at' => $occurredAt,

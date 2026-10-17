@@ -111,7 +111,7 @@ describe('State Eloquent Model', function () {
         expect($reloaded->state['status'])->toBe('paid');
     });
 
-    test('belongsTo type relationship resolves StateType model', function () {
+    test('getTypeName resolves string type name via StateType cache', function () {
         $typeId = StateType::idFor('subscription');
 
         $state = new State([
@@ -121,8 +121,6 @@ describe('State Eloquent Model', function () {
         ]);
         $state->save();
 
-        expect($state->type)->toBeInstanceOf(StateType::class)
-            ->and($state->type->name)->toBe('subscription')
-            ->and($state->getTypeName())->toBe('subscription');
+        expect($state->getTypeName())->toBe('subscription');
     });
 });

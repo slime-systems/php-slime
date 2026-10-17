@@ -8,6 +8,7 @@ use SlimeSystems\Bridge\Laravel\EventBusBridge;
 use SlimeSystems\Eloquent\ApplicationEventHandler;
 use SlimeSystems\Eloquent\Interactor;
 use SlimeSystems\Eloquent\Replay\EventReplayer;
+use SlimeSystems\Eloquent\EventType;
 use SlimeSystems\Eloquent\State;
 use SlimeSystems\Eloquent\StateType;
 use SlimeSystems\Eloquent\StoredEvent;
@@ -120,10 +121,15 @@ describe('ApplicationEventHandler & Architecture Integration', function () {
     beforeEach(function () {
         Schema::dropIfExists('stored_events');
         Schema::dropIfExists('process_states');
+        Schema::dropIfExists('event_types');
         Schema::dropIfExists('state_types');
 
         Schema::create('state_types', function ($table) {
             StateType::createBlueprint($table);
+        });
+
+        Schema::create('event_types', function ($table) {
+            EventType::createBlueprint($table);
         });
 
         Schema::create('process_states', function ($table) {
@@ -135,6 +141,7 @@ describe('ApplicationEventHandler & Architecture Integration', function () {
         });
 
         StateType::clearCache();
+        EventType::clearCache();
     });
 
     test('executes end-to-end command flow coordinating read model, event store, and Laravel event bus', function () {
@@ -218,9 +225,9 @@ describe('ApplicationEventHandler & Architecture Integration', function () {
         // C. StoredEvent table contains ONLY the 2 persistent events (TransitoryEvent is excluded!)
         $storedRecords = StoredEvent::forAggregate($stateKey)->get();
         expect($storedRecords)->toHaveCount(2)
-            ->and($storedRecords[0]->event_class)->toBe(AppTestAccountCreated::class)
+            ->and($storedRecords[0]->getEventClass())->toBe(AppTestAccountCreated::class)
             ->and($storedRecords[0]->position)->toBe(1)
-            ->and($storedRecords[1]->event_class)->toBe(AppTestAccountCredited::class)
+            ->and($storedRecords[1]->getEventClass())->toBe(AppTestAccountCredited::class)
             ->and($storedRecords[1]->position)->toBe(2);
 
         // D. Replayability Test: A completely clean read model can be rebuilt by replaying from StoredEvent

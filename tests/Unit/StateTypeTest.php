@@ -2,20 +2,15 @@
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use SlimeSystems\Eloquent\State;
 use SlimeSystems\Eloquent\StateType;
 
 describe('StateType Eloquent Model', function () {
     beforeEach(function () {
         StateType::clearCache();
-        Schema::dropIfExists('process_states');
         Schema::dropIfExists('state_types');
 
         Schema::create('state_types', function (Blueprint $table) {
             StateType::createBlueprint($table);
-        });
-        Schema::create('process_states', function (Blueprint $table) {
-            State::createBlueprint($table);
         });
     });
 
@@ -67,18 +62,14 @@ describe('StateType Eloquent Model', function () {
         expect(StateType::idFor('invoice'))->toBe($id);
     });
 
-    test('provides states hasMany relationship', function () {
-        $typeId = StateType::idFor('wallet');
+    test('primes cache in bulk with a single query', function () {
+        StateType::idFor('state-a');
+        StateType::idFor('state-b');
+        StateType::clearCache();
 
-        $state = new State([
-            'type_id' => $typeId,
-            'state_id' => 'wallet-1',
-            'state' => ['balance' => 100],
-        ]);
-        $state->save();
+        StateType::primeCache();
 
-        $type = StateType::find($typeId);
-        expect($type->states)->toHaveCount(1)
-            ->and($type->states->first()->state_id)->toBe('wallet-1');
+        expect(StateType::idFor('state-a'))->toBe(1)
+            ->and(StateType::idFor('state-b'))->toBe(2);
     });
 });

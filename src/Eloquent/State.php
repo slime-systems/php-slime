@@ -3,7 +3,6 @@
 namespace SlimeSystems\Eloquent;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Schema\Blueprint;
 
 /**
@@ -43,17 +42,11 @@ class State extends Model {
   public $timestamps = false;
 
   /**
-   * The attributes that are mass assignable.
+   * The attributes that aren't mass assignable.
    *
    * @var list<string>
    */
-  protected $fillable = [
-    'type_id',
-    'state_id',
-    'state',
-    'next_position',
-    'lock_version',
-  ];
+  protected $guarded = [];
 
   /**
    * The model's default attribute values.
@@ -114,14 +107,6 @@ class State extends Model {
     ];
   }
 
-  /**
-   * Relationship to the StateType model.
-   *
-   * @return BelongsTo<StateType, $this>
-   */
-  public function type(): BelongsTo {
-    return $this->belongsTo(StateType::class, 'type_id');
-  }
 
   /**
    * Find a model by its primary key (supports composite array, type:id string, or scalar state_id).

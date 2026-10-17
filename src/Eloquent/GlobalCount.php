@@ -44,12 +44,11 @@ class GlobalCount extends Model
     public $incrementing = false;
 
     /**
-     * @var array<int, string>
+     * The attributes that aren't mass assignable.
+     *
+     * @var list<string>
      */
-    protected $fillable = [
-        'key',
-        'next_value',
-    ];
+    protected $guarded = [];
 
     /**
      * @var array<string, string>

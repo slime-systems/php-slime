@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use SlimeSystems\Eloquent\EventType;
 use SlimeSystems\Eloquent\Replay\EventReplayer;
 use SlimeSystems\Eloquent\StateType;
 use SlimeSystems\Eloquent\StoredEvent;
@@ -18,10 +19,15 @@ class ReplayTestAccountRenamed {
 describe('EventReplayer', function () {
     beforeEach(function () {
         Schema::dropIfExists('stored_events');
+        Schema::dropIfExists('event_types');
         Schema::dropIfExists('state_types');
 
         Schema::create('state_types', function ($table) {
             StateType::createBlueprint($table);
+        });
+
+        Schema::create('event_types', function ($table) {
+            EventType::createBlueprint($table);
         });
 
         Schema::create('stored_events', function ($table) {
@@ -29,6 +35,7 @@ describe('EventReplayer', function () {
         });
 
         StateType::clearCache();
+        EventType::clearCache();
     });
 
     test('replays events for an aggregate in sequential position order', function () {
