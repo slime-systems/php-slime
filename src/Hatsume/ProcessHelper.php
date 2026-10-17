@@ -5,12 +5,22 @@ namespace SlimeSystems\Hatsume;
 use Closure;
 
 trait ProcessHelper {
-  protected static array $eventHandlers = [];
+  /** @var array<string, Closure> */
+  protected array $eventHandlers = [];
   protected array $state = [];
   protected array $pendingEvents = [];
 
-  protected static function on(string $eventClass, Closure $handler): void {
-    static::$eventHandlers[static::class][$eventClass] = $handler;
+  /**
+   * Register an event handler on the process instance.
+   */
+  protected function on(string $eventClass, Closure $handler): void {
+    $this->eventHandlers[$eventClass] = $handler;
+  }
+
+  /**
+   * Hook for registering event handlers. Override in process classes.
+   */
+  protected function registerEventHandlers(): void {
   }
 
   /**
@@ -24,11 +34,16 @@ trait ProcessHelper {
     return $this->pendingEvents;
   }
 
-  protected function apply(object|array ...$events): void {
-    $handlers = static::getEventHandlers();
+  protected function apply(object|array|null ...$events): void {
+    if (empty($this->eventHandlers)) {
+      $this->registerEventHandlers();
+    }
 
     $flattenedEvents = [];
     foreach ($events as $event) {
+      if ($event === null) {
+        continue;
+      }
       if (is_array($event)) {
         array_push($flattenedEvents, ...$event);
       } else {
@@ -37,19 +52,25 @@ trait ProcessHelper {
     }
 
     foreach ($flattenedEvents as $event) {
+      if ($event === null) {
+        continue;
+      }
       $eventClass = get_class($event);
 
-      if (isset($handlers[$eventClass])) {
+      if (isset($this->eventHandlers[$eventClass])) {
         // Dynamically binds $this context inside the closure
-        $handlers[$eventClass]->call($this, $event);
+        $this->eventHandlers[$eventClass]->call($this, $event);
       }
 
       $this->pendingEvents[] = $event;
     }
   }
 
-  public static function getEventHandlers(): array {
-    return static::$eventHandlers[static::class] ?? [];
+  public function getEventHandlers(): array {
+    if (empty($this->eventHandlers)) {
+      $this->registerEventHandlers();
+    }
+    return $this->eventHandlers;
   }
 
   protected function mergeState(array $default, ?array $recorded): array {

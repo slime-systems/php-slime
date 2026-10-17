@@ -9,7 +9,8 @@
     ],
     "require": {
         "illuminate/support": ">=10.0",
-        "illuminate/validation": ">=10.0"
+        "illuminate/validation": ">=10.0",
+        "psr/event-dispatcher": "^1.0"
     },
     "require-dev": {
         "pestphp/pest": "^5.1"
