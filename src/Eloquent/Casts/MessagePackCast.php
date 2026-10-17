@@ -17,6 +17,10 @@ class MessagePackCast implements CastsAttributes {
    * @return array<string, mixed>
    */
   public function get(Model $model, string $key, mixed $value, array $attributes): array {
+    if (is_resource($value)) {
+      $value = stream_get_contents($value);
+    }
+
     if ($value === null || $value === '') {
       return [];
     }
