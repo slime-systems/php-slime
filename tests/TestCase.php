@@ -41,12 +41,16 @@ abstract class TestCase extends BaseTestCase
 
     protected function setUpDatabase(): void
     {
+        $events = new \Illuminate\Events\Dispatcher($this->app);
+        $this->app->singleton('events', fn () => $events);
+
         $capsule = new \Illuminate\Database\Capsule\Manager($this->app);
         $capsule->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
         ]);
+        $capsule->setEventDispatcher($events);
         $capsule->setAsGlobal();
         $capsule->bootEloquent();
 
