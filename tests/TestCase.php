@@ -35,6 +35,23 @@ abstract class TestCase extends BaseTestCase
         $this->app->singleton('validator', function ($app) {
             return new ValidationFactory($app['translator'], $app);
         });
+
+        $this->setUpDatabase();
+    }
+
+    protected function setUpDatabase(): void
+    {
+        $capsule = new \Illuminate\Database\Capsule\Manager($this->app);
+        $capsule->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+        $capsule->setAsGlobal();
+        $capsule->bootEloquent();
+
+        $this->app->singleton('db', fn () => $capsule->getDatabaseManager());
+        $this->app->bind('db.schema', fn ($app) => $app['db']->connection()->getSchemaBuilder());
     }
 
     protected function tearDown(): void
