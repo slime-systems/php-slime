@@ -6,7 +6,6 @@ use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Carbon;
 
 /**
  * GlobalCount Model
@@ -17,11 +16,15 @@ use Illuminate\Support\Carbon;
  *
  * @property string $key
  * @property int $next_value
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
  */
 class GlobalCount extends Model {
   public const DEFAULT_KEY = 'global-count';
+  /**
+   * Indicates if the model should be timestamped.
+   *
+   * @var bool
+   */
+  public $timestamps = false;
   /**
    * Global default initial value resolver or scalar.
    *
@@ -63,7 +66,6 @@ class GlobalCount extends Model {
   public static function createBlueprint(Blueprint $table): void {
     $table->string('key')->primary();
     $table->unsignedBigInteger('next_value')->default(1);
-    $table->timestamps();
   }
 
   /**
