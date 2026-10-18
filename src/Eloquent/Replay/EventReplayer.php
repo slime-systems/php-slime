@@ -16,6 +16,19 @@ class EventReplayer {
   }
 
   /**
+   * Static convenience helper to replay an aggregate's events.
+   */
+  public static function forAggregate(
+    mixed    $stateKey,
+    callable $handler,
+    int      $fromPosition = 1,
+    ?int     $toPosition = null,
+    int      $chunkSize = 500,
+  ): int {
+    return (new self())->replayAggregate($stateKey, $handler, $fromPosition, $toPosition, $chunkSize);
+  }
+
+  /**
    * Replays events for a specific aggregate state key into a projection handler.
    *
    * @param mixed $stateKey
@@ -26,11 +39,11 @@ class EventReplayer {
    * @return int Total number of events replayed
    */
   public function replayAggregate(
-    mixed $stateKey,
+    mixed    $stateKey,
     callable $handler,
-    int $fromPosition = 1,
-    ?int $toPosition = null,
-    int $chunkSize = 500,
+    int      $fromPosition = 1,
+    ?int     $toPosition = null,
+    int      $chunkSize = 500,
   ): int {
     $modelClass = is_string($this->model) ? $this->model : $this->model::class;
     $resolvedKey = $modelClass::resolveStateKey($stateKey);
@@ -68,6 +81,17 @@ class EventReplayer {
   }
 
   /**
+   * Static convenience helper to replay all events.
+   */
+  public static function all(
+    callable $handler,
+    ?int     $typeId = null,
+    int      $chunkSize = 500,
+  ): int {
+    return (new self())->replayAll($handler, $typeId, $chunkSize);
+  }
+
+  /**
    * Replays all stored events in historical chronological order across all aggregates.
    *
    * @param callable(object, array<string, mixed>=): void $handler
@@ -77,8 +101,8 @@ class EventReplayer {
    */
   public function replayAll(
     callable $handler,
-    ?int $typeId = null,
-    int $chunkSize = 500,
+    ?int     $typeId = null,
+    int      $chunkSize = 500,
   ): int {
     $modelClass = is_string($this->model) ? $this->model : $this->model::class;
 
@@ -113,29 +137,5 @@ class EventReplayer {
     });
 
     return $count;
-  }
-
-  /**
-   * Static convenience helper to replay an aggregate's events.
-   */
-  public static function forAggregate(
-    mixed $stateKey,
-    callable $handler,
-    int $fromPosition = 1,
-    ?int $toPosition = null,
-    int $chunkSize = 500,
-  ): int {
-    return (new self())->replayAggregate($stateKey, $handler, $fromPosition, $toPosition, $chunkSize);
-  }
-
-  /**
-   * Static convenience helper to replay all events.
-   */
-  public static function all(
-    callable $handler,
-    ?int $typeId = null,
-    int $chunkSize = 500,
-  ): int {
-    return (new self())->replayAll($handler, $typeId, $chunkSize);
   }
 }

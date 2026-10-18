@@ -48,14 +48,6 @@ trait HasLookupTypeCache {
   }
 
   /**
-   * Defines default schema blueprint for lookup types table.
-   */
-  public static function createBlueprint(Blueprint $table): void {
-    $table->increments('id');
-    $table->string('name')->unique();
-  }
-
-  /**
    * Prime the in-memory cache with all existing records from database in a single query.
    */
   public static function primeCache(): void {
@@ -72,8 +64,8 @@ trait HasLookupTypeCache {
     try {
       $records = static::query()->get(['id', 'name']);
       foreach ($records as $record) {
-        $id = (int) $record->id;
-        $name = (string) $record->name;
+        $id = (int)$record->id;
+        $name = (string)$record->name;
         self::$nameToIdCache[$class][$name] = $id;
         self::$idToNameCache[$class][$id] = $name;
       }
@@ -81,6 +73,14 @@ trait HasLookupTypeCache {
     } catch (Throwable) {
       // Table may not exist yet during migration or early boot
     }
+  }
+
+  /**
+   * Defines default schema blueprint for lookup types table.
+   */
+  public static function createBlueprint(Blueprint $table): void {
+    $table->increments('id');
+    $table->string('name')->unique();
   }
 
   /**
@@ -96,7 +96,7 @@ trait HasLookupTypeCache {
 
     /** @var static $record */
     $record = static::firstOrCreate(['name' => $name]);
-    $id = (int) $record->id;
+    $id = (int)$record->id;
 
     self::$nameToIdCache[$class][$name] = $id;
     self::$idToNameCache[$class][$id] = $name;
@@ -121,7 +121,7 @@ trait HasLookupTypeCache {
       return null;
     }
 
-    $name = (string) $record->name;
+    $name = (string)$record->name;
     self::$idToNameCache[$class][$id] = $name;
     self::$nameToIdCache[$class][$name] = $id;
 

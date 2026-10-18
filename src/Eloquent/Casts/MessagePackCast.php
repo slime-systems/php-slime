@@ -26,7 +26,7 @@ class MessagePackCast implements CastsAttributes {
     }
 
     $unpacked = MessagePackSerializer::unpack($value);
-    return is_array($unpacked) ? $unpacked : (array) $unpacked;
+    return is_array($unpacked) ? $unpacked : (array)$unpacked;
   }
 
   /**

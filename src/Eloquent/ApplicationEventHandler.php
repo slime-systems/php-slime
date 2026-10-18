@@ -13,7 +13,7 @@ class ApplicationEventHandler {
    * @param (callable(mixed, array<string, mixed>=): void)|null $eventBus Optional external event bus bridge (e.g. EventBusBridge)
    */
   public function __construct(
-    callable $projector,
+    callable  $projector,
     ?callable $eventStore = null,
     ?callable $eventBus = null,
   ) {
@@ -41,7 +41,7 @@ class ApplicationEventHandler {
    * @param (callable(mixed, array<string, mixed>=): void)|null $eventBus
    */
   public static function make(
-    callable $projector,
+    callable  $projector,
     ?callable $eventStore = null,
     ?callable $eventBus = null,
   ): self {

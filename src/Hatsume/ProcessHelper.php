@@ -11,19 +11,6 @@ trait ProcessHelper {
   protected array $pendingEvents = [];
 
   /**
-   * Register an event handler on the process instance.
-   */
-  protected function on(string $eventClass, Closure $handler): void {
-    $this->eventHandlers[$eventClass] = $handler;
-  }
-
-  /**
-   * Hook for registering event handlers. Override in process classes.
-   */
-  protected function registerEventHandlers(): void {
-  }
-
-  /**
    * Get or access state by reference so $this->state()['key'] = val works.
    */
   public function &state(): array {
@@ -32,6 +19,20 @@ trait ProcessHelper {
 
   public function pendingEvents(): array {
     return $this->pendingEvents;
+  }
+
+  public function getEventHandlers(): array {
+    if (empty($this->eventHandlers)) {
+      $this->registerEventHandlers();
+    }
+    return $this->eventHandlers;
+  }
+
+  /**
+   * Register an event handler on the process instance.
+   */
+  protected function on(string $eventClass, Closure $handler): void {
+    $this->eventHandlers[$eventClass] = $handler;
   }
 
   protected function apply(object|array|null ...$events): void {
@@ -66,11 +67,10 @@ trait ProcessHelper {
     }
   }
 
-  public function getEventHandlers(): array {
-    if (empty($this->eventHandlers)) {
-      $this->registerEventHandlers();
-    }
-    return $this->eventHandlers;
+  /**
+   * Hook for registering event handlers. Override in process classes.
+   */
+  protected function registerEventHandlers(): void {
   }
 
   protected function mergeState(array $default, ?array $recorded): array {

@@ -7,14 +7,6 @@ use Illuminate\Support\Facades\Validator;
 trait Command {
   protected ?array $validatedCache = null;
 
-  abstract protected function rules(): array;
-
-  public function attributes(): array {
-    $vars = get_object_vars($this);
-    unset($vars['validatedCache']);
-    return $vars;
-  }
-
   public function validatedAttributes(): array {
     if ($this->validatedCache !== null) return $this->validatedCache;
     return $this->validatedCache = $this->validated();
@@ -46,6 +38,14 @@ trait Command {
 
     return $validated;
   }
+
+  public function attributes(): array {
+    $vars = get_object_vars($this);
+    unset($vars['validatedCache']);
+    return $vars;
+  }
+
+  abstract protected function rules(): array;
 
   /**
    * Infer type cast from validation rules

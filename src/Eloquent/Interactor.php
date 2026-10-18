@@ -2,8 +2,8 @@
 
 namespace SlimeSystems\Eloquent;
 
-use Closure;
-use Illuminate\Database\Eloquent\Builder;
+use ArgumentCountError;
+use Error;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -18,9 +18,9 @@ class Interactor {
    * @param class-string<Model>|Model $model Model class name or instance
    */
   public function __construct(
-    private readonly mixed $stateKey,
-    private readonly mixed $loadProcess,
-    private readonly mixed $eventHandler = null,
+    private readonly mixed        $stateKey,
+    private readonly mixed        $loadProcess,
+    private readonly mixed        $eventHandler = null,
     private readonly string|Model $model = State::class,
   ) {
   }
@@ -64,7 +64,7 @@ class Interactor {
     $currentState = $stateRecord->getAttribute('state') ?? [];
     $process = $this->loadProcessInstance($currentState, $stateRecord);
 
-    $initialNextPosition = (int) ($stateRecord->getAttribute('next_position') ?? 1);
+    $initialNextPosition = (int)($stateRecord->getAttribute('next_position') ?? 1);
     $metadataBuffer = [
       'next_position' => $initialNextPosition,
     ];
@@ -125,7 +125,7 @@ class Interactor {
         throw $e;
       }
     } else {
-      $currentLockVersion = (int) ($stateRecord->getAttribute('lock_version') ?? 0);
+      $currentLockVersion = (int)($stateRecord->getAttribute('lock_version') ?? 0);
       $query = $modelClass::query();
 
       foreach ($activeKeyAttributes as $col => $val) {
@@ -187,15 +187,15 @@ class Interactor {
     if (is_array($key)) {
       $typeId = $key['type_id'] ?? null;
       if ($typeId === null && isset($key['type'])) {
-        $typeId = StateType::idFor((string) $key['type']);
+        $typeId = StateType::idFor((string)$key['type']);
       }
 
       $stateId = $key['state_id'] ?? $key['id'] ?? null;
 
       if ($hasComposite && $typeId !== null && $stateId !== null) {
         return [
-          'type_id' => (int) $typeId,
-          'state_id' => (string) $stateId,
+          'type_id' => (int)$typeId,
+          'state_id' => (string)$stateId,
         ];
       }
 
@@ -215,7 +215,7 @@ class Interactor {
     if ($hasComposite) {
       return [
         'type_id' => StateType::idFor('default'),
-        'state_id' => (string) $key,
+        'state_id' => (string)$key,
       ];
     }
 
@@ -253,24 +253,8 @@ class Interactor {
   private function loadProcessInstance(array $state, Model $stateRecord): object {
     try {
       return ($this->loadProcess)($state, $stateRecord);
-    } catch (\ArgumentCountError|\Error) {
+    } catch (ArgumentCountError|Error) {
       return ($this->loadProcess)(state: $state);
-    }
-  }
-
-  /**
-   * Dispatches events and metadata to the registered handler.
-   *
-   * @param list<object> $events
-   * @param array<string, mixed> $metadata
-   */
-  private function dispatchEvents(array $events, array $metadata): void {
-    if ($this->eventHandler instanceof EventDispatcher) {
-      $this->eventHandler->call($events, $metadata);
-    } elseif (is_callable($this->eventHandler)) {
-      ($this->eventHandler)($events, $metadata);
-    } elseif (is_object($this->eventHandler) && method_exists($this->eventHandler, 'call')) {
-      $this->eventHandler->call($events, $metadata);
     }
   }
 
@@ -278,7 +262,7 @@ class Interactor {
    * Detects duplicate key / unique constraint exceptions across DB drivers.
    */
   private function isDuplicateKeyException(QueryException $e): bool {
-    $code = (string) $e->getCode();
+    $code = (string)$e->getCode();
     $message = $e->getMessage();
 
     // Standard SQLSTATE for unique violation: 23000 (MySQL, SQLite), 23505 (Postgres)
@@ -300,5 +284,21 @@ class Interactor {
       || str_contains($message, 'Duplicate entry')
       || str_contains($message, 'unique constraint')
       || str_contains($message, 'duplicate key value');
+  }
+
+  /**
+   * Dispatches events and metadata to the registered handler.
+   *
+   * @param list<object> $events
+   * @param array<string, mixed> $metadata
+   */
+  private function dispatchEvents(array $events, array $metadata): void {
+    if ($this->eventHandler instanceof EventDispatcher) {
+      $this->eventHandler->call($events, $metadata);
+    } elseif (is_callable($this->eventHandler)) {
+      ($this->eventHandler)($events, $metadata);
+    } elseif (is_object($this->eventHandler) && method_exists($this->eventHandler, 'call')) {
+      $this->eventHandler->call($events, $metadata);
+    }
   }
 }

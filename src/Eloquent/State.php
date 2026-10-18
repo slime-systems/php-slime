@@ -2,8 +2,10 @@
 
 namespace SlimeSystems\Eloquent;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use SlimeSystems\Eloquent\Casts\MessagePackCast;
 
 /**
  * @property int $type_id
@@ -14,33 +16,29 @@ use Illuminate\Database\Schema\Blueprint;
  */
 class State extends Model {
   /**
-   * The table associated with the model.
-   *
-   * @var string
-   */
-  protected $table = 'process_states';
-
-  /**
-   * The composite primary key associated with the table.
-   *
-   * @var list<string>
-   */
-  protected $primaryKey = ['type_id', 'state_id'];
-
-  /**
    * Indicates if the model's ID is auto-incrementing.
    *
    * @var bool
    */
   public $incrementing = false;
-
   /**
    * Indicates if the model should be timestamped.
    *
    * @var bool
    */
   public $timestamps = false;
-
+  /**
+   * The table associated with the model.
+   *
+   * @var string
+   */
+  protected $table = 'process_states';
+  /**
+   * The composite primary key associated with the table.
+   *
+   * @var list<string>
+   */
+  protected $primaryKey = ['type_id', 'state_id'];
   /**
    * The attributes that aren't mass assignable.
    *
@@ -65,7 +63,7 @@ class State extends Model {
    */
   protected $casts = [
     'type_id' => 'integer',
-    'state' => \SlimeSystems\Eloquent\Casts\MessagePackCast::class,
+    'state' => MessagePackCast::class,
     'next_position' => 'integer',
     'lock_version' => 'integer',
   ];
@@ -84,15 +82,37 @@ class State extends Model {
   }
 
   /**
-   * Set the keys for a save update query (enabling composite primary key support).
+   * Find a model by its primary key (supports composite array, type:id string, or scalar state_id).
    *
-   * @param \Illuminate\Database\Eloquent\Builder<static> $query
-   * @return \Illuminate\Database\Eloquent\Builder<static>
+   * @param mixed $id
+   * @param list<string> $columns
+   * @return static|null
    */
-  protected function setKeysForSaveQuery($query) {
-    return $query
-      ->where('type_id', $this->getAttribute('type_id'))
-      ->where('state_id', $this->getAttribute('state_id'));
+  public static function find($id, $columns = ['*']) {
+    if (is_array($id) && isset($id['type_id'], $id['state_id'])) {
+      return static::where('type_id', $id['type_id'])->where('state_id', (string)$id['state_id'])->first($columns);
+    }
+    if (is_array($id) && (isset($id['type']) || isset($id['type_id'])) && (isset($id['id']) || isset($id['state_id']))) {
+      $type = $id['type_id'] ?? $id['type'];
+      $stateId = $id['state_id'] ?? $id['id'];
+      return static::findByTypeAndId($type, $stateId);
+    }
+    if (is_string($id) && str_contains($id, ':')) {
+      [$type, $stateId] = explode(':', $id, 2);
+      return static::findByTypeAndId($type, $stateId);
+    }
+    if (is_scalar($id)) {
+      return static::where('state_id', (string)$id)->first($columns);
+    }
+    return parent::find($id, $columns);
+  }
+
+  /**
+   * Find a state record by string type or integer type_id and state_id.
+   */
+  public static function findByTypeAndId(int|string $type, string|int $stateId): ?self {
+    $typeId = is_int($type) ? $type : StateType::idFor($type);
+    return static::where('type_id', $typeId)->where('state_id', (string)$stateId)->first();
   }
 
   /**
@@ -107,46 +127,11 @@ class State extends Model {
     ];
   }
 
-
-  /**
-   * Find a model by its primary key (supports composite array, type:id string, or scalar state_id).
-   *
-   * @param mixed $id
-   * @param list<string> $columns
-   * @return static|null
-   */
-  public static function find($id, $columns = ['*']) {
-    if (is_array($id) && isset($id['type_id'], $id['state_id'])) {
-      return static::where('type_id', $id['type_id'])->where('state_id', (string) $id['state_id'])->first($columns);
-    }
-    if (is_array($id) && (isset($id['type']) || isset($id['type_id'])) && (isset($id['id']) || isset($id['state_id']))) {
-      $type = $id['type_id'] ?? $id['type'];
-      $stateId = $id['state_id'] ?? $id['id'];
-      return static::findByTypeAndId($type, $stateId);
-    }
-    if (is_string($id) && str_contains($id, ':')) {
-      [$type, $stateId] = explode(':', $id, 2);
-      return static::findByTypeAndId($type, $stateId);
-    }
-    if (is_scalar($id)) {
-      return static::where('state_id', (string) $id)->first($columns);
-    }
-    return parent::find($id, $columns);
-  }
-
-  /**
-   * Find a state record by string type or integer type_id and state_id.
-   */
-  public static function findByTypeAndId(int|string $type, string|int $stateId): ?self {
-    $typeId = is_int($type) ? $type : StateType::idFor($type);
-    return static::where('type_id', $typeId)->where('state_id', (string) $stateId)->first();
-  }
-
   /**
    * Convenience getter for type_id.
    */
   public function getTypeId(): int {
-    return (int) $this->getAttribute('type_id');
+    return (int)$this->getAttribute('type_id');
   }
 
   /**
@@ -154,7 +139,7 @@ class State extends Model {
    */
   public function getTypeName(): ?string {
     $typeId = $this->getAttribute('type_id');
-    return $typeId !== null ? StateType::nameFor((int) $typeId) : null;
+    return $typeId !== null ? StateType::nameFor((int)$typeId) : null;
   }
 
   /**
@@ -166,9 +151,9 @@ class State extends Model {
       return $stateId;
     }
     if (is_numeric($stateId) && filter_var($stateId, FILTER_VALIDATE_INT) !== false) {
-      return (int) $stateId;
+      return (int)$stateId;
     }
-    return (string) $stateId;
+    return (string)$stateId;
   }
 
   /**
@@ -184,13 +169,25 @@ class State extends Model {
    * Convenience getter for next position.
    */
   public function getNextPosition(): int {
-    return (int) $this->getAttribute('next_position');
+    return (int)$this->getAttribute('next_position');
   }
 
   /**
    * Convenience getter for lock version.
    */
   public function getLockVersion(): int {
-    return (int) $this->getAttribute('lock_version');
+    return (int)$this->getAttribute('lock_version');
+  }
+
+  /**
+   * Set the keys for a save update query (enabling composite primary key support).
+   *
+   * @param Builder<static> $query
+   * @return Builder<static>
+   */
+  protected function setKeysForSaveQuery($query) {
+    return $query
+      ->where('type_id', $this->getAttribute('type_id'))
+      ->where('state_id', $this->getAttribute('state_id'));
   }
 }

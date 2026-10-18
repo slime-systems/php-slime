@@ -28,7 +28,7 @@ class DateTimeExtension implements Extension {
     }
 
     $sec = $value->getTimestamp();
-    $usec = (int) $value->format('u');
+    $usec = (int)$value->format('u');
     $nsec = $usec * 1000;
 
     // 96-bit format: 32-bit nsec + 64-bit signed sec (before 1970 or past 2106)
@@ -67,12 +67,12 @@ class DateTimeExtension implements Extension {
         $nsec += 0x40000000;
       }
       $sec = $num & 0x3ffffffff;
-      return Carbon::createFromTimestampUTC($sec)->addMicroseconds((int) ($nsec / 1000));
+      return Carbon::createFromTimestampUTC($sec)->addMicroseconds((int)($nsec / 1000));
     }
 
     $data = $unpacker->read(12);
     $nsec = unpack('N', $data)[1];
     $sec = unpack('q', substr($data, 4))[1];
-    return Carbon::createFromTimestampUTC($sec)->addMicroseconds((int) ($nsec / 1000));
+    return Carbon::createFromTimestampUTC($sec)->addMicroseconds((int)($nsec / 1000));
   }
 }

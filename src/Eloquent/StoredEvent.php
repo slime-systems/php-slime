@@ -9,6 +9,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 use RuntimeException;
+use SlimeSystems\Eloquent\Casts\MessagePackCast;
 use SlimeSystems\Eloquent\Serialization\MessagePackSerializer;
 use SlimeSystems\Hatsume\TransitoryEvent;
 
@@ -23,33 +24,29 @@ use SlimeSystems\Hatsume\TransitoryEvent;
  */
 class StoredEvent extends Model {
   /**
-   * The table associated with the model.
-   *
-   * @var string
-   */
-  protected $table = 'stored_events';
-
-  /**
-   * The composite primary key associated with the table.
-   *
-   * @var list<string>
-   */
-  protected $primaryKey = ['type_id', 'state_id', 'position'];
-
-  /**
    * Indicates if the model's ID is auto-incrementing.
    *
    * @var bool
    */
   public $incrementing = false;
-
   /**
    * Indicates if the model should be timestamped.
    *
    * @var bool
    */
   public $timestamps = false;
-
+  /**
+   * The table associated with the model.
+   *
+   * @var string
+   */
+  protected $table = 'stored_events';
+  /**
+   * The composite primary key associated with the table.
+   *
+   * @var list<string>
+   */
+  protected $primaryKey = ['type_id', 'state_id', 'position'];
   /**
    * The attributes that aren't mass assignable.
    *
@@ -66,8 +63,8 @@ class StoredEvent extends Model {
     'type_id' => 'integer',
     'position' => 'integer',
     'event_type_id' => 'integer',
-    'data' => \SlimeSystems\Eloquent\Casts\MessagePackCast::class,
-    'metadata' => \SlimeSystems\Eloquent\Casts\MessagePackCast::class,
+    'data' => MessagePackCast::class,
+    'metadata' => MessagePackCast::class,
     'occurred_at' => 'datetime',
   ];
 
@@ -85,75 +82,6 @@ class StoredEvent extends Model {
 
     $table->primary(['type_id', 'state_id', 'position']);
     $table->index(['occurred_at', 'event_type_id']);
-  }
-
-  /**
-   * Set the keys for a save update query (enabling composite primary key support).
-   *
-   * @param Builder<static> $query
-   * @return Builder<static>
-   */
-  protected function setKeysForSaveQuery($query) {
-    return $query
-      ->where('type_id', $this->getAttribute('type_id'))
-      ->where('state_id', $this->getAttribute('state_id'))
-      ->where('position', $this->getAttribute('position'));
-  }
-
-  /**
-   * Get the primary key value for a save query.
-   *
-   * @return array{type_id: int|null, state_id: string|int|null, position: int|null}
-   */
-  public function getKey() {
-    return [
-      'type_id' => $this->getAttribute('type_id'),
-      'state_id' => $this->getAttribute('state_id'),
-      'position' => $this->getAttribute('position'),
-    ];
-  }
-
-
-  /**
-   * Convenience getter for event_type_id.
-   */
-  public function getEventTypeId(): int {
-    return (int) $this->getAttribute('event_type_id');
-  }
-
-  /**
-   * Convenience getter for string event class name resolved from EventType.
-   */
-  public function getEventClass(): ?string {
-    $eventTypeId = $this->getAttribute('event_type_id');
-    return $eventTypeId !== null ? EventType::nameFor((int) $eventTypeId) : null;
-  }
-
-  /**
-   * Convenience getter for string state type name resolved from StateType.
-   */
-  public function getTypeName(): ?string {
-    $typeId = $this->getAttribute('type_id');
-    return $typeId !== null ? StateType::nameFor((int) $typeId) : null;
-  }
-
-  /**
-   * Reconstitutes the stored event into its original domain event instance.
-   */
-  public function toEvent(): object {
-    /** @var class-string|null $class */
-    $class = $this->getEventClass();
-    if ($class === null || !class_exists($class)) {
-      throw new RuntimeException(sprintf('Event class "%s" does not exist for replay.', $class ?? 'null'));
-    }
-
-    $data = $this->getAttribute('data') ?? [];
-    $metadata = $this->getAttribute('metadata');
-
-    return new $class(
-      data: $data,
-      metadata: $metadata,
-    );
   }
 
   /**
@@ -193,7 +121,7 @@ class StoredEvent extends Model {
     $resolvedKey = self::resolveStateKey($stateKey);
     $typeId = $resolvedKey['type_id'];
     $stateId = $resolvedKey['state_id'];
-    $startPosition = (int) $nextPosition;
+    $startPosition = (int)$nextPosition;
 
     $records = [];
     foreach ($persistableEvents as $offset => $event) {
@@ -233,15 +161,15 @@ class StoredEvent extends Model {
     if (is_array($key)) {
       $typeId = $key['type_id'] ?? null;
       if ($typeId === null && isset($key['type'])) {
-        $typeId = StateType::idFor((string) $key['type']);
+        $typeId = StateType::idFor((string)$key['type']);
       }
 
       $stateId = $key['state_id'] ?? $key['id'] ?? null;
 
       if ($typeId !== null && $stateId !== null) {
         return [
-          'type_id' => (int) $typeId,
-          'state_id' => (string) $stateId,
+          'type_id' => (int)$typeId,
+          'state_id' => (string)$stateId,
         ];
       }
     }
@@ -250,14 +178,92 @@ class StoredEvent extends Model {
       [$typeName, $id] = explode(':', $key, 2);
       return [
         'type_id' => StateType::idFor($typeName),
-        'state_id' => (string) $id,
+        'state_id' => (string)$id,
       ];
     }
 
     return [
       'type_id' => StateType::idFor('default'),
-      'state_id' => (string) $key,
+      'state_id' => (string)$key,
     ];
+  }
+
+  /**
+   * Resolves timestamp from event metadata, dispatch metadata, or current time.
+   */
+  private static function resolveOccurredAt(mixed $eventMetadata, array $dispatchMetadata): string {
+    $time = null;
+
+    if (is_array($eventMetadata) && isset($eventMetadata['occurred_at'])) {
+      $time = $eventMetadata['occurred_at'];
+    } elseif (isset($dispatchMetadata['occurred_at'])) {
+      $time = $dispatchMetadata['occurred_at'];
+    }
+
+    if ($time instanceof DateTimeInterface) {
+      return $time->format('Y-m-d H:i:s.u');
+    }
+
+    if (is_string($time)) {
+      return Carbon::parse($time)->format('Y-m-d H:i:s.u');
+    }
+
+    return Carbon::now()->format('Y-m-d H:i:s.u');
+  }
+
+  /**
+   * Get the primary key value for a save query.
+   *
+   * @return array{type_id: int|null, state_id: string|int|null, position: int|null}
+   */
+  public function getKey() {
+    return [
+      'type_id' => $this->getAttribute('type_id'),
+      'state_id' => $this->getAttribute('state_id'),
+      'position' => $this->getAttribute('position'),
+    ];
+  }
+
+  /**
+   * Convenience getter for event_type_id.
+   */
+  public function getEventTypeId(): int {
+    return (int)$this->getAttribute('event_type_id');
+  }
+
+  /**
+   * Convenience getter for string state type name resolved from StateType.
+   */
+  public function getTypeName(): ?string {
+    $typeId = $this->getAttribute('type_id');
+    return $typeId !== null ? StateType::nameFor((int)$typeId) : null;
+  }
+
+  /**
+   * Reconstitutes the stored event into its original domain event instance.
+   */
+  public function toEvent(): object {
+    /** @var class-string|null $class */
+    $class = $this->getEventClass();
+    if ($class === null || !class_exists($class)) {
+      throw new RuntimeException(sprintf('Event class "%s" does not exist for replay.', $class ?? 'null'));
+    }
+
+    $data = $this->getAttribute('data') ?? [];
+    $metadata = $this->getAttribute('metadata');
+
+    return new $class(
+      data: $data,
+      metadata: $metadata,
+    );
+  }
+
+  /**
+   * Convenience getter for string event class name resolved from EventType.
+   */
+  public function getEventClass(): ?string {
+    $eventTypeId = $this->getAttribute('event_type_id');
+    return $eventTypeId !== null ? EventType::nameFor((int)$eventTypeId) : null;
   }
 
   /**
@@ -287,25 +293,15 @@ class StoredEvent extends Model {
   }
 
   /**
-   * Resolves timestamp from event metadata, dispatch metadata, or current time.
+   * Set the keys for a save update query (enabling composite primary key support).
+   *
+   * @param Builder<static> $query
+   * @return Builder<static>
    */
-  private static function resolveOccurredAt(mixed $eventMetadata, array $dispatchMetadata): string {
-    $time = null;
-
-    if (is_array($eventMetadata) && isset($eventMetadata['occurred_at'])) {
-      $time = $eventMetadata['occurred_at'];
-    } elseif (isset($dispatchMetadata['occurred_at'])) {
-      $time = $dispatchMetadata['occurred_at'];
-    }
-
-    if ($time instanceof DateTimeInterface) {
-      return $time->format('Y-m-d H:i:s.u');
-    }
-
-    if (is_string($time)) {
-      return Carbon::parse($time)->format('Y-m-d H:i:s.u');
-    }
-
-    return Carbon::now()->format('Y-m-d H:i:s.u');
+  protected function setKeysForSaveQuery($query) {
+    return $query
+      ->where('type_id', $this->getAttribute('type_id'))
+      ->where('state_id', $this->getAttribute('state_id'))
+      ->where('position', $this->getAttribute('position'));
   }
 }

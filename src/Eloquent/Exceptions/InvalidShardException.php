@@ -2,6 +2,5 @@
 
 namespace SlimeSystems\Eloquent\Exceptions;
 
-class InvalidShardException extends InvalidShard
-{
+class InvalidShardException extends InvalidShard {
 }

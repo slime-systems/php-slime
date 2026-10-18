@@ -13,19 +13,17 @@ class FieldType extends Model {
   use HasLookupTypeCache;
 
   /**
-   * The table associated with the model.
-   *
-   * @var string
-   */
-  protected $table = 'field_types';
-
-  /**
    * Indicates if the model should be timestamped.
    *
    * @var bool
    */
   public $timestamps = false;
-
+  /**
+   * The table associated with the model.
+   *
+   * @var string
+   */
+  protected $table = 'field_types';
   /**
    * The attributes that aren't mass assignable.
    *
