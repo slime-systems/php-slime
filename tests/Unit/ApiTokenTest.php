@@ -145,6 +145,43 @@ describe('ApiTokenVerifier & ApiTokenIssuer', function () {
         expect($claims)->toHaveKey('iat');
     });
 
+    it('allows fetchSecret to throw custom domain exceptions that bubble out immediately', function () use ($secret, $keyId) {
+        $token = ApiTokenIssuer::issue($keyId, $secret, 'body');
+
+        $verifier = new ApiTokenVerifier(function (string $kid) {
+            throw new \RuntimeException("Tenant revoked: [{$kid}]");
+        });
+
+        expect(fn() => $verifier->verify($token, 'body'))
+            ->toThrow(\RuntimeException::class, "Tenant revoked: [{$keyId}]");
+    });
+
+    it('allows handleResult to return custom transformed values or throw custom exceptions', function () use ($secret, $keyId, $keys) {
+        $body = 'payload';
+        $token = ApiTokenIssuer::issue($keyId, $secret, $body, ['user_id' => 42]);
+
+        $verifier = new ApiTokenVerifier(
+            fetchSecret: $keys,
+            handleResult: function (array $claims) {
+                return (object)['user' => $claims['user_id']];
+            }
+        );
+
+        $result = $verifier->verify($token, $body);
+        expect($result)->toBeObject();
+        expect($result->user)->toBe(42);
+
+        $throwingVerifier = new ApiTokenVerifier(
+            fetchSecret: $keys,
+            handleResult: function () {
+                throw new \DomainException('Account suspended');
+            }
+        );
+
+        expect(fn() => $throwingVerifier->verify($token, $body))
+            ->toThrow(\DomainException::class, 'Account suspended');
+    });
+
     it('throws InvalidTokenException on malformed token strings or signature failure', function () use ($keys) {
         $verifier = new ApiTokenVerifier($keys);
 

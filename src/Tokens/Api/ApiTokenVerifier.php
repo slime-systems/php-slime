@@ -24,7 +24,7 @@ class ApiTokenVerifier
     protected $fetchSecret;
 
     /** @var callable|null */
-    protected $validatePayload;
+    protected $handleResult;
 
     /**
      * @param callable|array $fetchSecret Callable (string $kid, array $header): ?string, or array of ['kid' => 'secret']
@@ -32,8 +32,9 @@ class ApiTokenVerifier
      * @param int $futureSkewSeconds Permissible future clock skew in seconds (default: 30)
      * @param string $hashAlgorithm Hashing algorithm for api:hash (default: 'sha256')
      * @param bool $requireApiHash Whether the api:hash claim is required (default: true)
-     * @param callable|null $validatePayload Optional custom validator callable (array $claims, array $header): array
+     * @param callable|null $handleResult Optional result handler callable (array $claims, array $header): mixed
      * @param array $allowedAlgorithms Allowed JWT algorithms (default: ['HS256'])
+     * @param callable|null $validatePayload Deprecated alias for handleResult
      */
     public function __construct(
         callable|array $fetchSecret,
@@ -41,8 +42,9 @@ class ApiTokenVerifier
         protected readonly int $futureSkewSeconds = 30,
         protected readonly string $hashAlgorithm = 'sha256',
         protected readonly bool $requireApiHash = true,
-        ?callable $validatePayload = null,
-        protected readonly array $allowedAlgorithms = ['HS256']
+        ?callable $handleResult = null,
+        protected readonly array $allowedAlgorithms = ['HS256'],
+        ?callable $validatePayload = null
     ) {
         if (is_array($fetchSecret)) {
             $this->fetchSecret = fn(string $kid) => $fetchSecret[$kid] ?? null;
@@ -50,7 +52,7 @@ class ApiTokenVerifier
             $this->fetchSecret = $fetchSecret;
         }
 
-        $this->validatePayload = $validatePayload;
+        $this->handleResult = $handleResult ?? $validatePayload;
     }
 
     /**
@@ -59,14 +61,14 @@ class ApiTokenVerifier
      * @param string|Request $tokenOrRequest Token string or Laravel HTTP Request
      * @param string|Request|null $bodyOrRequest Raw body string or Laravel HTTP Request (if not extracted from first argument)
      * @param int|null $currentTime Optional fixed timestamp for testing
-     * @return array Decoded and verified claims
+     * @return mixed Decoded claims or value returned by handleResult
      * @throws TokenException
      */
     public function verify(
         string|Request $tokenOrRequest,
         string|Request|null $bodyOrRequest = null,
         ?int $currentTime = null
-    ): array {
+    ): mixed {
         $token = $this->extractToken($tokenOrRequest);
         $rawBody = $this->extractRawBody($bodyOrRequest ?? $tokenOrRequest);
 
@@ -79,9 +81,9 @@ class ApiTokenVerifier
      * @param string $token
      * @param string $rawBody
      * @param int|null $currentTime
-     * @return array
+     * @return mixed
      */
-    public function verifyTokenAndBody(string $token, string $rawBody = '', ?int $currentTime = null): array
+    public function verifyTokenAndBody(string $token, string $rawBody = '', ?int $currentTime = null): mixed
     {
         $header = $this->extractHeader($token);
 
@@ -104,7 +106,9 @@ class ApiTokenVerifier
             $headersObj = new stdClass();
             $decoded = JWT::decode($token, new Key($secret, $alg), $headersObj);
             $claims = json_decode(json_encode($decoded), true);
-        } catch (Throwable $e) {
+        } catch (\Firebase\JWT\ExpiredException | \Firebase\JWT\BeforeValidException $e) {
+            throw new TokenExpiredException($e->getMessage(), (int)$e->getCode(), $e);
+        } catch (\Firebase\JWT\SignatureInvalidException | \UnexpectedValueException | \InvalidArgumentException | \DomainException $e) {
             throw new InvalidTokenException($e->getMessage(), (int)$e->getCode(), $e);
         }
 
@@ -125,9 +129,9 @@ class ApiTokenVerifier
             );
         }
 
-        // Run custom validator if configured
-        if ($this->validatePayload !== null) {
-            $claims = ($this->validatePayload)($claims, $header);
+        // Run custom result handler if configured
+        if ($this->handleResult !== null) {
+            return ($this->handleResult)($claims, $header);
         }
 
         return $claims;

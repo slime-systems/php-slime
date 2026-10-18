@@ -86,4 +86,26 @@ describe('OpaqueToken & ContinuationToken (PASETO v4.local)', function () {
         expect(fn() => $cursorManager->decode($token, 'stream-B'))
             ->toThrow(InvalidTokenException::class);
     });
+
+    it('allows fetchSecret and handleResult to throw custom exceptions in OpaqueToken', function () use ($secret, $keyId) {
+        $opaque = new OpaqueToken([$keyId => $secret], defaultKeyId: $keyId);
+        $token = $opaque->encrypt(['data' => 'sample'], keyId: $keyId);
+
+        $throwingFetcher = new OpaqueToken(function () {
+            throw new \UnderflowException('Database connection lost');
+        });
+
+        expect(fn() => $throwingFetcher->decrypt($token))
+            ->toThrow(\UnderflowException::class, 'Database connection lost');
+
+        // Test handleResult in decrypt
+        $result = $opaque->decrypt($token, handleResult: function (array $claims) {
+            return strtoupper($claims['data']);
+        });
+        expect($result)->toBe('SAMPLE');
+
+        expect(fn() => $opaque->decrypt($token, handleResult: function () {
+            throw new \LogicException('Permission denied');
+        }))->toThrow(\LogicException::class, 'Permission denied');
+    });
 });

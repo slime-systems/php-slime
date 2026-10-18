@@ -22,16 +22,26 @@ class FirebaseVerifier
      * @param string $projectId Firebase project ID (aud)
      * @param string|null $issuer Expected issuer (defaults to https://securetoken.google.com/{projectId})
      * @param KeyCache|null $keyCache Optional custom or pre-configured KeyCache
+    /** @var callable|null */
+    protected $handleResult;
+
+    /**
+     * @param string $projectId Firebase project ID (aud)
+     * @param string|null $issuer Expected issuer (defaults to https://securetoken.google.com/{projectId})
+     * @param KeyCache|null $keyCache Optional custom or pre-configured KeyCache
      * @param int $leewaySeconds Permissible clock skew leeway (default: 30)
+     * @param callable|null $handleResult Optional callback (array $claims, array $header): mixed
      */
     public function __construct(
         protected readonly string $projectId,
         ?string $issuer = null,
         ?KeyCache $keyCache = null,
-        protected readonly int $leewaySeconds = 30
+        protected readonly int $leewaySeconds = 30,
+        ?callable $handleResult = null
     ) {
         $this->issuer = $issuer ?? "https://securetoken.google.com/{$this->projectId}";
         $this->keyCache = $keyCache ?? new KeyCache();
+        $this->handleResult = $handleResult;
     }
 
     /**
@@ -39,10 +49,10 @@ class FirebaseVerifier
      *
      * @param string $token
      * @param int|null $currentTime
-     * @return array Decoded verified token claims
+     * @return mixed Decoded verified token claims or value returned by handleResult
      * @throws TokenException
      */
-    public function verify(string $token, ?int $currentTime = null): array
+    public function verify(string $token, ?int $currentTime = null): mixed
     {
         $now = $currentTime ?? time();
         $header = $this->extractHeader($token);
@@ -67,9 +77,9 @@ class FirebaseVerifier
             }
             $decoded = JWT::decode($token, new Key($certPem, 'RS256'), $headersObj);
             $claims = json_decode(json_encode($decoded), true);
-        } catch (\Firebase\JWT\ExpiredException $e) {
+        } catch (\Firebase\JWT\ExpiredException | \Firebase\JWT\BeforeValidException $e) {
             throw new TokenExpiredException($e->getMessage(), (int)$e->getCode(), $e);
-        } catch (Throwable $e) {
+        } catch (\Firebase\JWT\SignatureInvalidException | \UnexpectedValueException | \InvalidArgumentException | \DomainException $e) {
             throw new InvalidTokenException("Firebase token verification failed: {$e->getMessage()}", (int)$e->getCode(), $e);
         } finally {
             if ($currentTime !== null) {
@@ -78,6 +88,10 @@ class FirebaseVerifier
         }
 
         $this->validateClaims($claims, $now);
+
+        if ($this->handleResult !== null) {
+            return ($this->handleResult)($claims, $header);
+        }
 
         return $claims;
     }

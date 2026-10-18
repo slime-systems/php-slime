@@ -71,7 +71,7 @@ class OpaqueToken
             }
 
             return $builder->toString();
-        } catch (Throwable $e) {
+        } catch (\ParagonIE\Paseto\Exception\PasetoException | \TypeError | \InvalidArgumentException $e) {
             throw new InvalidTokenException("Failed to encrypt PASETO token: {$e->getMessage()}", (int)$e->getCode(), $e);
         }
     }
@@ -81,10 +81,11 @@ class OpaqueToken
      *
      * @param string $token
      * @param string|null $implicitAssertion Optional implicit assertion passed during encryption
-     * @return array Decrypted claims array
+     * @param callable|null $handleResult Optional callback (array $claims, ?string $footer): mixed
+     * @return mixed Decrypted claims array or value returned by handleResult
      * @throws TokenException
      */
-    public function decrypt(string $token, ?string $implicitAssertion = null): array
+    public function decrypt(string $token, ?string $implicitAssertion = null, ?callable $handleResult = null): mixed
     {
         $footer = $this->peekFooter($token);
         $kid = ($footer !== '' && $footer !== null) ? $footer : $this->defaultKeyId;
@@ -100,8 +101,13 @@ class OpaqueToken
             $parser = Parser::getLocal($symmetricKey, $this->protocols);
             $parsed = $parser->parse(trim($token));
 
-            return $parsed->getClaims();
-        } catch (Throwable $e) {
+            $claims = $parsed->getClaims();
+            if ($handleResult !== null) {
+                return ($handleResult)($claims, $footer);
+            }
+
+            return $claims;
+        } catch (\ParagonIE\Paseto\Exception\PasetoException | \TypeError | \InvalidArgumentException $e) {
             throw new InvalidTokenException("PASETO decryption failed: {$e->getMessage()}", (int)$e->getCode(), $e);
         }
     }

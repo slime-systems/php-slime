@@ -151,4 +151,39 @@ describe('FirebaseVerifier & KeyCache', function () {
         expect($key3)->toBe($certPem);
         expect($fetchCount)->toBe(2);
     });
+
+    it('allows handleResult to return custom transformed object or throw in FirebaseVerifier', function () use ($projectId, $kid, $certPem, $privateKeyPem) {
+        $now = 1700000000;
+        $token = JWT::encode([
+            'aud' => $projectId,
+            'iss' => "https://securetoken.google.com/{$projectId}",
+            'sub' => 'uid-42',
+            'auth_time' => $now - 10,
+            'iat' => $now - 10,
+            'exp' => $now + 3600,
+        ], $privateKeyPem, 'RS256', $kid, ['kid' => $kid]);
+
+        $keyCache = new KeyCache();
+        $keyCache->setKeys([$kid => $certPem], currentTime: $now);
+
+        $verifier = new FirebaseVerifier(
+            projectId: $projectId,
+            keyCache: $keyCache,
+            handleResult: fn(array $claims) => "User: {$claims['sub']}"
+        );
+
+        $result = $verifier->verify($token, currentTime: $now);
+        expect($result)->toBe('User: uid-42');
+
+        $throwingVerifier = new FirebaseVerifier(
+            projectId: $projectId,
+            keyCache: $keyCache,
+            handleResult: function () {
+                throw new \DomainException('Banned user');
+            }
+        );
+
+        expect(fn() => $throwingVerifier->verify($token, currentTime: $now))
+            ->toThrow(\DomainException::class, 'Banned user');
+    });
 });
