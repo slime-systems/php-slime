@@ -1,7 +1,7 @@
 # Slime for PHP
 
 [![License](https://img.shields.io/badge/License-BSD--3--Clause--Attribution-blue.svg)](LICENSE.md)
-[![PHP Version](https://img.shields.io/badge/PHP-%3E%3D8.2-8892BF.svg)](https://www.php.net/)
+[![PHP Version](https://img.shields.io/badge/PHP-%3E%3D8.4-8892BF.svg)](https://www.php.net/)
 [![Laravel Compatibility](https://img.shields.io/badge/Laravel-10%2B-FF2D20.svg)](https://laravel.com/)
 
 > **Enterprise CQRS, Event Sourcing, and High-Assurance Token Infrastructure for Modern PHP & Laravel Applications.**
@@ -48,7 +48,7 @@ composer require slime-systems/php-slime
 
 ### System Requirements
 
-* **PHP:** ^8.2 or higher
+* **PHP:** ^8.4 or higher
 * **Laravel / Illuminate Components:** ^10.0, ^11.0, or ^12.0
 * Recommended extensions: `ext-msgpack` (or bundled userland fallback), `ext-sodium`
 

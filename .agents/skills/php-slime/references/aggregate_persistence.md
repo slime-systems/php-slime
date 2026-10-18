@@ -119,7 +119,7 @@ $events = $interactor->call($chargeCommand);
 In clean architecture, the aggregate process remains a **pure domain object** without dependencies on HTTP requests, session storage, or external third-party SDKs. The controller acts as the orchestrator and ambient bridge.
 
 ### Pattern Structure
-The controller injects delegates into the process using PHP 8.2+ First-Class Callables (`$this->methodName(...)`):
+The controller injects delegates into the process using PHP 8.4+ First-Class Callables (`$this->methodName(...)`):
 1. **Validation & Enrichment:** `$this->checkSomething(...)` validates request constraints and can throw an exception to halt execution if invalid.
 2. **Side-Effect / Query Services:** Injects callables to query read models or interact with external services.
 3. **Ambient Event Metadata:** `$this->initializeEvent(...)` attaches ambient request context to domain events.
