@@ -1,0 +1,31 @@
+name: Notify Packagist
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  notify-packagist:
+    name: Notify Packagist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Packagist Package Update
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
+            "https://packagist.org/api/update-package?username=${{ secrets.PACKAGIST_USERNAME }}&apiToken=${{ secrets.PACKAGIST_TOKEN }}" \
+            -d '{"repository":{"url":"https://packagist.org/packages/slime-systems/php-slime"}}')
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Packagist Response HTTP $http_code:"
+          echo "$body"
+
+          if [ "$http_code" -ne 200 ] && [ "$http_code" -ne 202 ]; then
+            echo "Failed to notify Packagist (HTTP $http_code)"
+            exit 1
+          fi

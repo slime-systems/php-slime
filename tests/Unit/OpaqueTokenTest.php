@@ -31,7 +31,8 @@ describe('OpaqueToken & ContinuationToken (PASETO v4.local)', function () {
 
         // Tamper with a character in the token payload section
         $parts = explode('.', $token);
-        $tamperedPayload = substr_replace($parts[2], 'X', 10, 1);
+        $char = $parts[2][10] === 'X' ? 'Y' : 'X';
+        $tamperedPayload = substr_replace($parts[2], $char, 10, 1);
         $parts[2] = $tamperedPayload;
         $tampered = implode('.', $parts);
 
