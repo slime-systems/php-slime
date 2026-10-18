@@ -1,25 +1,46 @@
 {
     "name": "slime-systems/php-slime",
-    "type": "library",
+    "description": "Enterprise CQRS, Event Sourcing, and High-Assurance Token Infrastructure for Modern PHP & Laravel Applications.",
+    "keywords": [
+        "cqrs",
+        "event-sourcing",
+        "domain-driven-design",
+        "ddd",
+        "laravel",
+        "eloquent",
+        "tokens",
+        "paseto",
+        "jwt"
+    ],
+    "homepage": "https://github.com/slime-systems/php-slime",
     "license": "BSD-3-Clause-Attribution",
     "authors": [
         {
             "name": "Sarun Rattanasiri"
         }
     ],
+    "support": {
+        "issues": "https://github.com/slime-systems/php-slime/issues",
+        "source": "https://github.com/slime-systems/php-slime"
+    },
     "require": {
-        "illuminate/support": ">=10.0",
-        "illuminate/validation": ">=10.0",
-        "illuminate/database": ">=10.0",
-        "rybakit/msgpack": "^0.9 || ^1.0",
-        "slime-systems/object-id": "^1.0",
-        "illuminate/events": ">=10.0",
+        "php": "^8.2",
         "firebase/php-jwt": "^7.2",
-        "illuminate/http": ">=10.0",
-        "paragonie/paseto": "^3.5"
+        "illuminate/database": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+        "illuminate/events": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+        "illuminate/http": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+        "illuminate/support": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+        "illuminate/validation": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+        "paragonie/paseto": "^3.5",
+        "rybakit/msgpack": "^0.9 || ^1.0",
+        "slime-systems/object-id": "^1.0"
     },
     "require-dev": {
         "pestphp/pest": "^5.1"
+    },
+    "suggest": {
+        "ext-msgpack": "Enables native high-performance MessagePack serialization",
+        "ext-sodium": "Provides optimal performance and secure memory zeroing for PASETO v4"
     },
     "autoload": {
         "psr-4": {
@@ -34,8 +55,11 @@
     "config": {
         "allow-plugins": {
             "pestphp/pest-plugin": true
-        }
+        },
+        "sort-packages": true
     },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
     "scripts": {
         "test": "pest"
     }
