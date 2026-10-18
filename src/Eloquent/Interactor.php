@@ -22,6 +22,7 @@ class Interactor {
     private readonly mixed        $loadProcess,
     private readonly mixed        $eventHandler = null,
     private readonly string|Model $model = State::class,
+    private readonly int          $maxRetries = 100,
   ) {
   }
 
@@ -38,6 +39,7 @@ class Interactor {
 
   /**
    * Executes domain commands, persists the aggregate state, and dispatches events.
+   * Automatically retries up to $maxRetries on concurrent write conflicts.
    *
    * @param object|array<int, object> ...$commands
    * @return list<object>
@@ -48,6 +50,29 @@ class Interactor {
       $commands = $commands[0];
     }
 
+    $retries = max(1, $this->maxRetries);
+
+    for ($attempt = 1; $attempt <= $retries; $attempt++) {
+      try {
+        return $this->executeOnce($commands);
+      } catch (StaleRecordException $e) {
+        if ($attempt >= $retries) {
+          throw $e;
+        }
+      }
+    }
+
+    return [];
+  }
+
+  /**
+   * Performs a single command execution cycle.
+   *
+   * @param list<object> $commands
+   * @return list<object>
+   * @throws StaleRecordException
+   */
+  private function executeOnce(array $commands): array {
     $isLazyKey = is_callable($this->stateKey);
     /** @var class-string<Model> $modelClass */
     $modelClass = is_string($this->model) ? $this->model : $this->model::class;

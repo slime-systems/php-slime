@@ -359,12 +359,13 @@ describe('Eloquent Interactor', function () {
             stateKey: ['type' => 'wallet', 'id' => 'wallet-conflict'],
             loadProcess: function (?array $state = null) use ($typeId) {
                 // Simulate another process modifying the DB record while this process is executing
-                State::where('type_id', $typeId)->where('state_id', 'wallet-conflict')->update(['lock_version' => 1]);
+                State::where('type_id', $typeId)->where('state_id', 'wallet-conflict')->increment('lock_version');
                 return new WalletProcess($state);
             },
             eventHandler: function () use (&$dispatched) {
                 $dispatched = true;
             },
+            maxRetries: 1,
         );
 
         expect(fn () => $interactor->call(new DepositFundsCommand(amount: 50)))
@@ -414,5 +415,70 @@ describe('Eloquent Interactor', function () {
         expect($events)->toHaveCount(1)
             ->and($eventsJournal)->toHaveCount(1)
             ->and($eventsJournal[0]['metadata']['state_key'])->toBe(['type' => 'wallet', 'id' => 'wallet-invokable']);
+    });
+
+    test('automatically retries and succeeds when collision occurs before retry limit', function () {
+        $typeId = StateType::idFor('wallet');
+
+        $initialRecord = new State([
+            'type_id' => $typeId,
+            'state_id' => 'wallet-retry-success',
+            'state' => ['opened' => true, 'owner' => 'Grace', 'balance' => 100],
+            'next_position' => 2,
+            'lock_version' => 0,
+        ]);
+        $initialRecord->save();
+
+        $callCount = 0;
+        $interactor = new Interactor(
+            stateKey: ['type' => 'wallet', 'id' => 'wallet-retry-success'],
+            loadProcess: function (?array $state = null) use ($typeId, &$callCount) {
+                $callCount++;
+                if ($callCount === 1) {
+                    // Simulate collision ONLY on attempt 1 by advancing lock_version in DB
+                    State::where('type_id', $typeId)->where('state_id', 'wallet-retry-success')->update(['lock_version' => 1]);
+                }
+                return new WalletProcess($state);
+            },
+            maxRetries: 3,
+        );
+
+        $events = $interactor->call(new DepositFundsCommand(amount: 50));
+
+        expect($events)->toHaveCount(1)
+            ->and($callCount)->toBe(2);
+
+        $finalRecord = State::findByTypeAndId('wallet', 'wallet-retry-success');
+        expect($finalRecord->state['balance'])->toBe(150)
+            ->and($finalRecord->lock_version)->toBe(2);
+    });
+
+    test('throws StaleRecordException when maxRetries is 1 and collision occurs', function () {
+        $typeId = StateType::idFor('wallet');
+
+        $initialRecord = new State([
+            'type_id' => $typeId,
+            'state_id' => 'wallet-no-retry',
+            'state' => ['opened' => true, 'owner' => 'Grace', 'balance' => 100],
+            'next_position' => 2,
+            'lock_version' => 0,
+        ]);
+        $initialRecord->save();
+
+        $callCount = 0;
+        $interactor = new Interactor(
+            stateKey: ['type' => 'wallet', 'id' => 'wallet-no-retry'],
+            loadProcess: function (?array $state = null) use ($typeId, &$callCount) {
+                $callCount++;
+                State::where('type_id', $typeId)->where('state_id', 'wallet-no-retry')->update(['lock_version' => 1]);
+                return new WalletProcess($state);
+            },
+            maxRetries: 1,
+        );
+
+        expect(fn () => $interactor->call(new DepositFundsCommand(amount: 50)))
+            ->toThrow(StaleRecordException::class);
+
+        expect($callCount)->toBe(1);
     });
 });
