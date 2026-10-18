@@ -13,7 +13,9 @@
         "illuminate/database": ">=10.0",
         "rybakit/msgpack": "^0.9 || ^1.0",
         "slime-systems/object-id": "^1.0",
-        "illuminate/events": ">=10.0"
+        "illuminate/events": ">=10.0",
+        "firebase/php-jwt": "^7.2",
+        "illuminate/http": ">=10.0"
     },
     "require-dev": {
         "pestphp/pest": "^5.1"

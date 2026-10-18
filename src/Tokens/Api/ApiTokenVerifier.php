@@ -1,0 +1,194 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SlimeSystems\Tokens\Api;
+
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
+use Illuminate\Http\Request;
+use SlimeSystems\Tokens\Concerns\ValidatesTokenPayload;
+use SlimeSystems\Tokens\Exceptions\InvalidTokenException;
+use SlimeSystems\Tokens\Exceptions\KeyNotFoundException;
+use SlimeSystems\Tokens\Exceptions\TokenException;
+use SlimeSystems\Tokens\Exceptions\TokenExpiredException;
+use SlimeSystems\Tokens\Exceptions\TokenSchemaViolationException;
+use stdClass;
+use Throwable;
+
+class ApiTokenVerifier
+{
+    use ValidatesTokenPayload;
+
+    /** @var callable */
+    protected $fetchSecret;
+
+    /** @var callable|null */
+    protected $validatePayload;
+
+    /**
+     * @param callable|array $fetchSecret Callable (string $kid, array $header): ?string, or array of ['kid' => 'secret']
+     * @param int $maxAgeSeconds Maximum token age in seconds (default: 300)
+     * @param int $futureSkewSeconds Permissible future clock skew in seconds (default: 30)
+     * @param string $hashAlgorithm Hashing algorithm for api:hash (default: 'sha256')
+     * @param bool $requireApiHash Whether the api:hash claim is required (default: true)
+     * @param callable|null $validatePayload Optional custom validator callable (array $claims, array $header): array
+     * @param array $allowedAlgorithms Allowed JWT algorithms (default: ['HS256'])
+     */
+    public function __construct(
+        callable|array $fetchSecret,
+        protected readonly int $maxAgeSeconds = 300,
+        protected readonly int $futureSkewSeconds = 30,
+        protected readonly string $hashAlgorithm = 'sha256',
+        protected readonly bool $requireApiHash = true,
+        ?callable $validatePayload = null,
+        protected readonly array $allowedAlgorithms = ['HS256']
+    ) {
+        if (is_array($fetchSecret)) {
+            $this->fetchSecret = fn(string $kid) => $fetchSecret[$kid] ?? null;
+        } else {
+            $this->fetchSecret = $fetchSecret;
+        }
+
+        $this->validatePayload = $validatePayload;
+    }
+
+    /**
+     * Verify a token against a request or explicit body string.
+     *
+     * @param string|Request $tokenOrRequest Token string or Laravel HTTP Request
+     * @param string|Request|null $bodyOrRequest Raw body string or Laravel HTTP Request (if not extracted from first argument)
+     * @param int|null $currentTime Optional fixed timestamp for testing
+     * @return array Decoded and verified claims
+     * @throws TokenException
+     */
+    public function verify(
+        string|Request $tokenOrRequest,
+        string|Request|null $bodyOrRequest = null,
+        ?int $currentTime = null
+    ): array {
+        $token = $this->extractToken($tokenOrRequest);
+        $rawBody = $this->extractRawBody($bodyOrRequest ?? $tokenOrRequest);
+
+        return $this->verifyTokenAndBody($token, $rawBody, $currentTime);
+    }
+
+    /**
+     * Decode and verify a raw token string with an explicit raw body.
+     *
+     * @param string $token
+     * @param string $rawBody
+     * @param int|null $currentTime
+     * @return array
+     */
+    public function verifyTokenAndBody(string $token, string $rawBody = '', ?int $currentTime = null): array
+    {
+        $header = $this->extractHeader($token);
+
+        $alg = $header['alg'] ?? null;
+        if (!in_array($alg, $this->allowedAlgorithms, true)) {
+            throw new InvalidTokenException("Algorithm [{$alg}] is not supported or allowed.");
+        }
+
+        $kid = $header['kid'] ?? null;
+        if (!is_string($kid) || $kid === '') {
+            throw new TokenSchemaViolationException(['kid' => ['The kid header is required and must be a non-empty string.']]);
+        }
+
+        $secret = ($this->fetchSecret)($kid, $header);
+        if ($secret === null || $secret === '') {
+            throw new KeyNotFoundException("API Key with kid [{$kid}] was not found.");
+        }
+
+        try {
+            $headersObj = new stdClass();
+            $decoded = JWT::decode($token, new Key($secret, $alg), $headersObj);
+            $claims = json_decode(json_encode($decoded), true);
+        } catch (Throwable $e) {
+            throw new InvalidTokenException($e->getMessage(), (int)$e->getCode(), $e);
+        }
+
+        // Validate iat
+        $this->validateIat(
+            iat: $claims['iat'] ?? null,
+            maxAgeSeconds: $this->maxAgeSeconds,
+            futureSkewSeconds: $this->futureSkewSeconds,
+            currentTime: $currentTime
+        );
+
+        // Validate api:hash
+        if ($this->requireApiHash) {
+            $this->validateApiHash(
+                apiHash: $claims['api:hash'] ?? null,
+                rawBody: $rawBody,
+                algorithm: $this->hashAlgorithm
+            );
+        }
+
+        // Run custom validator if configured
+        if ($this->validatePayload !== null) {
+            $claims = ($this->validatePayload)($claims, $header);
+        }
+
+        return $claims;
+    }
+
+    /**
+     * Extract token from string or Request.
+     */
+    public function extractToken(string|Request $tokenOrRequest): string
+    {
+        if (is_string($tokenOrRequest)) {
+            return trim($tokenOrRequest);
+        }
+
+        $bearer = $tokenOrRequest->bearerToken();
+        if ($bearer !== null && $bearer !== '') {
+            return $bearer;
+        }
+
+        // Support fallback to input('request') (seen in thai-document APIController)
+        $paramToken = $tokenOrRequest->input('request');
+        if (is_string($paramToken) && $paramToken !== '') {
+            return trim($paramToken);
+        }
+
+        throw new InvalidTokenException('Bearer token was not provided in request.');
+    }
+
+    /**
+     * Extract raw body from string or Request.
+     */
+    public function extractRawBody(string|Request|null $bodyOrRequest): string
+    {
+        if ($bodyOrRequest === null) {
+            return '';
+        }
+
+        if (is_string($bodyOrRequest)) {
+            return $bodyOrRequest;
+        }
+
+        return $bodyOrRequest->getContent();
+    }
+
+    /**
+     * Inspect and parse the unverified JWT header.
+     */
+    protected function extractHeader(string $token): array
+    {
+        $segments = explode('.', $token);
+        if (count($segments) !== 3) {
+            throw new InvalidTokenException('Invalid JWT structure: token must contain 3 segments.');
+        }
+
+        $headerJson = JWT::urlsafeB64Decode($segments[0]);
+        $header = json_decode($headerJson, true);
+
+        if (!is_array($header)) {
+            throw new InvalidTokenException('Invalid JWT header format.');
+        }
+
+        return $header;
+    }
+}
