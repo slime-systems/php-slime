@@ -3,22 +3,33 @@
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use SlimeSystems\Eloquent\FieldType;
 use SlimeSystems\Eloquent\Serialization\MessagePackSerializer;
 use SlimeSystems\Eloquent\State;
 use SlimeSystems\Eloquent\StateType;
 
 describe('MessagePack State Serialization & DateTime Support', function () {
     beforeEach(function () {
+        FieldType::clearCache();
         StateType::clearCache();
         Schema::dropIfExists('process_states');
         Schema::dropIfExists('state_types');
+        Schema::dropIfExists('field_types');
 
+        Schema::create('field_types', function (Blueprint $table) {
+            FieldType::createBlueprint($table);
+        });
         Schema::create('state_types', function (Blueprint $table) {
             StateType::createBlueprint($table);
         });
         Schema::create('process_states', function (Blueprint $table) {
             State::createBlueprint($table);
         });
+    });
+
+    afterEach(function () {
+        FieldType::clearCache();
+        StateType::clearCache();
     });
 
     test('serializes and deserializes primitives, maps, and arrays', function () {

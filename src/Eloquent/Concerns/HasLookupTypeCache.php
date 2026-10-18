@@ -28,6 +28,26 @@ trait HasLookupTypeCache {
   private static array $isPrimed = [];
 
   /**
+   * Indicates if the underlying table has been verified available per class.
+   *
+   * @var array<class-string, bool>
+   */
+  private static array $isAvailable = [];
+
+  /**
+   * Check if the underlying table exists and is available for operations.
+   */
+  public static function isAvailable(): bool {
+    $class = static::class;
+    if (isset(self::$isAvailable[$class])) {
+      return self::$isAvailable[$class];
+    }
+
+    self::primeCache();
+    return self::$isAvailable[$class] = !empty(self::$isPrimed[$class]);
+  }
+
+  /**
    * Defines default schema blueprint for lookup types table.
    */
   public static function createBlueprint(Blueprint $table): void {
@@ -127,6 +147,6 @@ trait HasLookupTypeCache {
    */
   public static function clearCache(): void {
     $class = static::class;
-    unset(self::$nameToIdCache[$class], self::$idToNameCache[$class], self::$isPrimed[$class]);
+    unset(self::$nameToIdCache[$class], self::$idToNameCache[$class], self::$isPrimed[$class], self::$isAvailable[$class]);
   }
 }
