@@ -20,17 +20,17 @@ use Illuminate\Database\Schema\Blueprint;
 class GlobalCount extends Model {
   public const DEFAULT_KEY = 'global-count';
   /**
-   * Indicates if the model should be timestamped.
-   *
-   * @var bool
-   */
-  public $timestamps = false;
-  /**
    * Global default initial value resolver or scalar.
    *
    * @var int|Closure|null
    */
   protected static int|Closure|null $defaultInitialValue = null;
+  /**
+   * Indicates if the model should be timestamped.
+   *
+   * @var bool
+   */
+  public $timestamps = false;
   /**
    * @var bool
    */

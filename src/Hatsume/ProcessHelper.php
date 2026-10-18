@@ -29,6 +29,12 @@ trait ProcessHelper {
   }
 
   /**
+   * Hook for registering event handlers. Override in process classes.
+   */
+  protected function registerEventHandlers(): void {
+  }
+
+  /**
    * Register an event handler on the process instance.
    */
   protected function on(string $eventClass, Closure $handler): void {
@@ -65,12 +71,6 @@ trait ProcessHelper {
 
       $this->pendingEvents[] = $event;
     }
-  }
-
-  /**
-   * Hook for registering event handlers. Override in process classes.
-   */
-  protected function registerEventHandlers(): void {
   }
 
   protected function mergeState(array $default, ?array $recorded): array {

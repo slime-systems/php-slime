@@ -5,125 +5,125 @@ use Illuminate\Support\Facades\Schema;
 use SlimeSystems\Eloquent\GlobalCount;
 
 describe('GlobalCount Eloquent Model & Atomic Sequence Generator', function () {
-    beforeEach(function () {
-        Schema::dropIfExists('global_counts');
+  beforeEach(function () {
+    Schema::dropIfExists('global_counts');
 
-        Schema::create('global_counts', function (Blueprint $table) {
-            GlobalCount::createBlueprint($table);
-        });
-
-        GlobalCount::setDefaultInitialValue(null);
+    Schema::create('global_counts', function (Blueprint $table) {
+      GlobalCount::createBlueprint($table);
     });
 
-    afterEach(function () {
-        GlobalCount::setDefaultInitialValue(null);
-    });
+    GlobalCount::setDefaultInitialValue(null);
+  });
 
-    test('allocates monotonically increasing sequence numbers starting from default 1', function () {
-        $val1 = GlobalCount::nextValue();
-        $val2 = GlobalCount::nextValue();
-        $val3 = GlobalCount::nextValue();
+  afterEach(function () {
+    GlobalCount::setDefaultInitialValue(null);
+  });
 
-        expect($val1)->toBe(1)
-            ->and($val2)->toBe(2)
-            ->and($val3)->toBe(3);
+  test('allocates monotonically increasing sequence numbers starting from default 1', function () {
+    $val1 = GlobalCount::nextValue();
+    $val2 = GlobalCount::nextValue();
+    $val3 = GlobalCount::nextValue();
 
-        $record = GlobalCount::peek();
-        expect($record)->not->toBeNull()
-            ->and($record->next_value)->toBe(4);
-    });
+    expect($val1)->toBe(1)
+      ->and($val2)->toBe(2)
+      ->and($val3)->toBe(3);
 
-    test('snake_case alias next_value works identically for Ruby parity', function () {
-        $val1 = GlobalCount::next_value();
-        $val2 = GlobalCount::next_value();
+    $record = GlobalCount::peek();
+    expect($record)->not->toBeNull()
+      ->and($record->next_value)->toBe(4);
+  });
 
-        expect($val1)->toBe(1)
-            ->and($val2)->toBe(2);
-    });
+  test('snake_case alias next_value works identically for Ruby parity', function () {
+    $val1 = GlobalCount::next_value();
+    $val2 = GlobalCount::next_value();
 
-    test('supports isolated named sequences', function () {
-        $account1 = GlobalCount::nextValue('account');
-        $account2 = GlobalCount::nextValue('account');
+    expect($val1)->toBe(1)
+      ->and($val2)->toBe(2);
+  });
 
-        $project1 = GlobalCount::nextValue('project');
-        $project2 = GlobalCount::nextValue('project');
+  test('supports isolated named sequences', function () {
+    $account1 = GlobalCount::nextValue('account');
+    $account2 = GlobalCount::nextValue('account');
 
-        expect($account1)->toBe(1)
-            ->and($account2)->toBe(2)
-            ->and($project1)->toBe(1)
-            ->and($project2)->toBe(2);
-    });
+    $project1 = GlobalCount::nextValue('project');
+    $project2 = GlobalCount::nextValue('project');
 
-    test('accepts explicit initial value on sequence creation', function () {
-        $order1 = GlobalCount::nextValue('order', 1000);
-        $order2 = GlobalCount::nextValue('order', 1000); // already created, so 1000 is ignored
+    expect($account1)->toBe(1)
+      ->and($account2)->toBe(2)
+      ->and($project1)->toBe(1)
+      ->and($project2)->toBe(2);
+  });
 
-        expect($order1)->toBe(1000)
-            ->and($order2)->toBe(1001);
-    });
+  test('accepts explicit initial value on sequence creation', function () {
+    $order1 = GlobalCount::nextValue('order', 1000);
+    $order2 = GlobalCount::nextValue('order', 1000); // already created, so 1000 is ignored
 
-    test('respects configurable default initial value scalar or closure', function () {
-        GlobalCount::setDefaultInitialValue(500);
+    expect($order1)->toBe(1000)
+      ->and($order2)->toBe(1001);
+  });
 
-        expect(GlobalCount::nextValue('custom-seq'))->toBe(500)
-            ->and(GlobalCount::nextValue('custom-seq'))->toBe(501);
+  test('respects configurable default initial value scalar or closure', function () {
+    GlobalCount::setDefaultInitialValue(500);
 
-        // Closure generator
-        GlobalCount::setDefaultInitialValue(fn () => 9999);
-        expect(GlobalCount::nextValue('closure-seq'))->toBe(9999);
-    });
+    expect(GlobalCount::nextValue('custom-seq'))->toBe(500)
+      ->and(GlobalCount::nextValue('custom-seq'))->toBe(501);
 
-    test('randomInitialValue generates positive integers within RubySlime boundary', function () {
-        for ($i = 0; $i < 20; $i++) {
-            $value = GlobalCount::randomInitialValue();
-            expect($value)->toBeGreaterThanOrEqual(1)
-                ->and($value)->toBeLessThanOrEqual(0x07ffff); // 524,287
-        }
-    });
+    // Closure generator
+    GlobalCount::setDefaultInitialValue(fn() => 9999);
+    expect(GlobalCount::nextValue('closure-seq'))->toBe(9999);
+  });
 
-    test('peek returns model record without incrementing sequence', function () {
-        expect(GlobalCount::peek())->toBeNull();
+  test('randomInitialValue generates positive integers within RubySlime boundary', function () {
+    for ($i = 0; $i < 20; $i++) {
+      $value = GlobalCount::randomInitialValue();
+      expect($value)->toBeGreaterThanOrEqual(1)
+        ->and($value)->toBeLessThanOrEqual(0x07ffff); // 524,287
+    }
+  });
 
-        GlobalCount::nextValue();
+  test('peek returns model record without incrementing sequence', function () {
+    expect(GlobalCount::peek())->toBeNull();
 
-        $peeked1 = GlobalCount::peek();
-        $peeked2 = GlobalCount::peek();
+    GlobalCount::nextValue();
 
-        expect($peeked1)->not->toBeNull()
-            ->and($peeked1->key)->toBe(GlobalCount::DEFAULT_KEY)
-            ->and($peeked1->next_value)->toBe(2)
-            ->and($peeked2->next_value)->toBe(2);
-    });
+    $peeked1 = GlobalCount::peek();
+    $peeked2 = GlobalCount::peek();
 
-    test('currentValue returns integer next_value without incrementing', function () {
-        expect(GlobalCount::currentValue('unknown'))->toBeNull();
+    expect($peeked1)->not->toBeNull()
+      ->and($peeked1->key)->toBe(GlobalCount::DEFAULT_KEY)
+      ->and($peeked1->next_value)->toBe(2)
+      ->and($peeked2->next_value)->toBe(2);
+  });
 
-        GlobalCount::nextValue('doc_seq', 10);
-        expect(GlobalCount::currentValue('doc_seq'))->toBe(11);
-    });
+  test('currentValue returns integer next_value without incrementing', function () {
+    expect(GlobalCount::currentValue('unknown'))->toBeNull();
 
-    test('reset updates or creates sequence with specified value', function () {
-        GlobalCount::reset('reset_seq', 50);
-        expect(GlobalCount::currentValue('reset_seq'))->toBe(50);
+    GlobalCount::nextValue('doc_seq', 10);
+    expect(GlobalCount::currentValue('doc_seq'))->toBe(11);
+  });
 
-        $next = GlobalCount::nextValue('reset_seq');
-        expect($next)->toBe(50);
-        expect(GlobalCount::currentValue('reset_seq'))->toBe(51);
+  test('reset updates or creates sequence with specified value', function () {
+    GlobalCount::reset('reset_seq', 50);
+    expect(GlobalCount::currentValue('reset_seq'))->toBe(50);
 
-        GlobalCount::reset('reset_seq', 100);
-        expect(GlobalCount::currentValue('reset_seq'))->toBe(100);
-    });
+    $next = GlobalCount::nextValue('reset_seq');
+    expect($next)->toBe(50);
+    expect(GlobalCount::currentValue('reset_seq'))->toBe(51);
 
-    test('handles CAS collision retry safely', function () {
-        // Pre-create record
-        GlobalCount::create([
-            'key' => 'race_key',
-            'next_value' => 10,
-        ]);
+    GlobalCount::reset('reset_seq', 100);
+    expect(GlobalCount::currentValue('reset_seq'))->toBe(100);
+  });
 
-        // Allocate sequence
-        $val1 = GlobalCount::nextValue('race_key');
-        expect($val1)->toBe(10);
-        expect(GlobalCount::currentValue('race_key'))->toBe(11);
-    });
+  test('handles CAS collision retry safely', function () {
+    // Pre-create record
+    GlobalCount::create([
+      'key' => 'race_key',
+      'next_value' => 10,
+    ]);
+
+    // Allocate sequence
+    $val1 = GlobalCount::nextValue('race_key');
+    expect($val1)->toBe(10);
+    expect(GlobalCount::currentValue('race_key'))->toBe(11);
+  });
 });
