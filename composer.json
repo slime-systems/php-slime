@@ -15,7 +15,8 @@
         "slime-systems/object-id": "^1.0",
         "illuminate/events": ">=10.0",
         "firebase/php-jwt": "^7.2",
-        "illuminate/http": ">=10.0"
+        "illuminate/http": ">=10.0",
+        "paragonie/paseto": "^3.5"
     },
     "require-dev": {
         "pestphp/pest": "^5.1"
