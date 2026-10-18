@@ -1,0 +1,12 @@
+# Set default line endings to LF
+* text=auto eol=lf
+
+# Export ignore for clean Composer distribution archives
+/.agents export-ignore
+/.git* export-ignore
+/.github export-ignore
+/.idea export-ignore
+/example.local.d export-ignore
+/justfile export-ignore
+/phpunit.xml* export-ignore
+/tests export-ignore
