@@ -1,17 +1,20 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SlimeSystems\Eloquent;
 
-use RuntimeException;
+use SlimeSystems\Exceptions\RapidException;
 use SlimeSystems\Hatsume\ConcurrentWriteDetected;
-use Throwable;
 
-class StaleRecordException extends RuntimeException implements ConcurrentWriteDetected {
+class StaleRecordException extends RapidException implements ConcurrentWriteDetected {
+  public const string CONCURRENT_WRITE = __CLASS__ . '::CONCURRENT_WRITE';
+
   public function __construct(
-    string     $message = 'Concurrent write detected for state record.',
-    int        $code = 0,
-    ?Throwable $previous = null,
+    string $message = 'Concurrent write detected for state record.',
+    mixed ...$metadata,
   ) {
-    parent::__construct($message, $code, $previous);
+    $metadata['message'] = $message;
+    parent::__construct(self::CONCURRENT_WRITE, ...$metadata);
   }
 }

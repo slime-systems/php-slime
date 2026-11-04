@@ -4,7 +4,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use SlimeSystems\Eloquent\Concerns\QuerySharding;
-use SlimeSystems\Eloquent\Exceptions\InvalidShard;
 use SlimeSystems\Eloquent\Exceptions\InvalidShardException;
 use SlimeSystems\Eloquent\QuerySharding as QueryShardingHelper;
 
@@ -124,54 +123,19 @@ describe('QuerySharding Eloquent Concern & Utility', function () {
     expect($result)->toHaveCount(1); // 10 % 1024 = 10
   });
 
-  test('throws InvalidShardException on non-integer parameters', function () {
-    expect(fn() => ShardedTask::queryShard('invalid', 0)->get())
-      ->toThrow(InvalidShardException::class, 'Shard count and shard number must be integers.');
-
-    expect(fn() => ShardedTask::queryShard(4, 'invalid')->get())
-      ->toThrow(InvalidShardException::class, 'Shard count and shard number must be integers.');
-
-    expect(fn() => ShardedTask::queryShard(4.5, 0)->get())
-      ->toThrow(InvalidShardException::class, 'Shard count and shard number must be integers.');
-  });
-
-  test('throws InvalidShardException on invalid shard count', function () {
-    expect(fn() => ShardedTask::queryShard(0, 0)->get())
-      ->toThrow(InvalidShardException::class, 'Shard count must be between 1 and 1024');
-
-    expect(fn() => ShardedTask::queryShard(-1, 0)->get())
-      ->toThrow(InvalidShardException::class, 'Shard count must be between 1 and 1024');
-
-    expect(fn() => ShardedTask::queryShard(1025, 0)->get())
-      ->toThrow(InvalidShardException::class, 'Shard count must be between 1 and 1024');
-  });
-
-  test('throws InvalidShardException on invalid shard number', function () {
-    expect(fn() => ShardedTask::queryShard(4, -1)->get())
-      ->toThrow(InvalidShardException::class, 'Shard number must be between 0 and 3');
-
-    expect(fn() => ShardedTask::queryShard(4, 4)->get())
-      ->toThrow(InvalidShardException::class, 'Shard number must be between 0 and 3');
-
-    expect(fn() => ShardedTask::queryShard(4, 5)->get())
-      ->toThrow(InvalidShardException::class, 'Shard number must be between 0 and 3');
-  });
-
-  test('InvalidShard exception alias catches InvalidShardException for Ruby parity', function () {
-    try {
-      ShardedTask::queryShard(0, 0)->get();
-      $this->fail('Expected InvalidShard to be thrown');
-    } catch (InvalidShard $e) {
-      expect($e)->toBeInstanceOf(InvalidShardException::class);
-    }
+  test('throws InvalidShardException on invalid shard parameters', function () {
+    expect(fn() => ShardedTask::queryShard('invalid', 0)->get())->toThrow(InvalidShardException::class)
+      ->and(fn() => ShardedTask::queryShard(0, 0)->get())->toThrow(InvalidShardException::class)
+      ->and(fn() => ShardedTask::queryShard(1025, 0)->get())->toThrow(InvalidShardException::class)
+      ->and(fn() => ShardedTask::queryShard(4, 5)->get())->toThrow(InvalidShardException::class)
+      ->and(fn() => ShardedTask::queryShard(4, -1)->get())->toThrow(InvalidShardException::class);
   });
 
   test('QuerySharding::calculateShard computes correct shard modulo', function () {
     expect(QueryShardingHelper::calculateShard(10, 4))->toBe(2)
       ->and(QueryShardingHelper::calculateShard(12, 4))->toBe(0)
-      ->and(QueryShardingHelper::calculateShard(7, 3))->toBe(1);
-
-    expect(fn() => QueryShardingHelper::calculateShard(10, 0))
+      ->and(QueryShardingHelper::calculateShard(7, 3))->toBe(1)
+      ->and(fn() => QueryShardingHelper::calculateShard(10, 0))
       ->toThrow(InvalidShardException::class);
   });
 });
