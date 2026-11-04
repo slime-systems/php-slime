@@ -4,8 +4,7 @@ declare(strict_types = 1);
 
 namespace SlimeSystems\Tokens\State;
 
-use SlimeSystems\Tokens\Exceptions\InvalidTokenException;
-use SlimeSystems\Tokens\Exceptions\TokenException;
+use SlimeSystems\Tokens\TokenException;
 
 class ContinuationToken {
   protected OpaqueToken $opaqueToken;
@@ -54,12 +53,12 @@ class ContinuationToken {
 
     $sub = $payload['sub'] ?? null;
     if ($expectedSubject !== null && $sub !== $expectedSubject) {
-      throw new InvalidTokenException("Continuation token subject mismatch: expected [{$expectedSubject}] but got [{$sub}].");
+      throw new TokenException(TokenException::INVALID, "Continuation token subject mismatch: expected [{$expectedSubject}] but got [{$sub}].");
     }
 
     $data = $payload['data'] ?? null;
     if (!is_array($data)) {
-      throw new InvalidTokenException('Continuation token payload missing data array.');
+      throw new TokenException(TokenException::INVALID, 'Continuation token payload missing data array.');
     }
 
     return $data;

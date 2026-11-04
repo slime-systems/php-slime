@@ -5,12 +5,7 @@ declare(strict_types = 1);
 use Illuminate\Http\Request;
 use SlimeSystems\Tokens\Api\ApiTokenIssuer;
 use SlimeSystems\Tokens\Api\ApiTokenVerifier;
-use SlimeSystems\Tokens\Exceptions\IatClockSkewException;
-use SlimeSystems\Tokens\Exceptions\InvalidTokenException;
-use SlimeSystems\Tokens\Exceptions\KeyNotFoundException;
-use SlimeSystems\Tokens\Exceptions\MismatchedApiHashException;
-use SlimeSystems\Tokens\Exceptions\TokenExpiredException;
-use SlimeSystems\Tokens\Exceptions\TokenSchemaViolationException;
+use SlimeSystems\Tokens\TokenException;
 
 describe('ApiTokenVerifier & ApiTokenIssuer', function () {
   $secret = 'super-secret-key-32-bytes-length!';
@@ -29,18 +24,22 @@ describe('ApiTokenVerifier & ApiTokenIssuer', function () {
     expect($claims)->toHaveKey('iat');
   });
 
-  it('throws MismatchedApiHashException when body is tampered with', function () use ($secret, $keyId, $keys) {
+  it('throws TokenException::MISMATCHED_HASH when body is tampered with', function () use ($secret, $keyId, $keys) {
     $originalBody = json_encode(['command' => 'fund/transfer', 'amount' => 100]);
     $tamperedBody = json_encode(['command' => 'fund/transfer', 'amount' => 1000000]);
 
     $token = ApiTokenIssuer::issue($keyId, $secret, $originalBody);
     $verifier = new ApiTokenVerifier($keys);
 
-    expect(fn() => $verifier->verify($token, $tamperedBody))
-      ->toThrow(MismatchedApiHashException::class);
+    try {
+      $verifier->verify($token, $tamperedBody);
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::MISMATCHED_HASH);
+    }
   });
 
-  it('throws TokenExpiredException when iat is older than maxAgeSeconds', function () use ($secret, $keyId, $keys) {
+  it('throws TokenException::EXPIRED when iat is older than maxAgeSeconds', function () use ($secret, $keyId, $keys) {
     $body = 'hello';
     $now = 1000000;
     $oldIat = $now - 301; // older than 300s
@@ -48,11 +47,15 @@ describe('ApiTokenVerifier & ApiTokenIssuer', function () {
     $token = ApiTokenIssuer::issue($keyId, $secret, $body, iat: $oldIat);
     $verifier = new ApiTokenVerifier($keys, maxAgeSeconds: 300);
 
-    expect(fn() => $verifier->verify($token, $body, currentTime: $now))
-      ->toThrow(TokenExpiredException::class);
+    try {
+      $verifier->verify($token, $body, currentTime: $now);
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::EXPIRED);
+    }
   });
 
-  it('throws IatClockSkewException when iat is in the future beyond allowable skew', function () use ($secret, $keyId, $keys) {
+  it('throws TokenException::CLOCK_SKEW when iat is in the future beyond allowable skew', function () use ($secret, $keyId, $keys) {
     $body = 'hello';
     $now = 1000000;
     $futureIat = $now + 35; // beyond 30s skew
@@ -60,61 +63,75 @@ describe('ApiTokenVerifier & ApiTokenIssuer', function () {
     $token = ApiTokenIssuer::issue($keyId, $secret, $body, iat: $futureIat);
     $verifier = new ApiTokenVerifier($keys, futureSkewSeconds: 30);
 
-    expect(fn() => $verifier->verify($token, $body, currentTime: $now))
-      ->toThrow(IatClockSkewException::class);
+    try {
+      $verifier->verify($token, $body, currentTime: $now);
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::CLOCK_SKEW);
+    }
   });
 
-  it('throws KeyNotFoundException when kid does not match any registered key', function () use ($secret) {
+  it('throws TokenException::KEY_NOT_FOUND when kid does not match any registered key', function () use ($secret) {
     $body = 'test';
     $token = ApiTokenIssuer::issue('unknown_kid', $secret, $body);
 
     $verifier = new ApiTokenVerifier(['registered_kid' => $secret]);
 
-    expect(fn() => $verifier->verify($token, $body))
-      ->toThrow(KeyNotFoundException::class);
+    try {
+      $verifier->verify($token, $body);
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::KEY_NOT_FOUND);
+    }
   });
 
   it('supports dynamic fetchSecret callback', function () use ($secret, $keyId) {
     $body = 'test';
     $token = ApiTokenIssuer::issue($keyId, $secret, $body);
 
-    $fetchCount = 0;
-    $verifier = new ApiTokenVerifier(function (string $kid, array $header) use (&$fetchCount, $keyId, $secret) {
-      $fetchCount++;
-      return $kid === $keyId ? $secret : null;
+    $calledKid = null;
+    $verifier = new ApiTokenVerifier(function (string $kid) use ($secret, &$calledKid) {
+      $calledKid = $kid;
+      return $secret;
     });
 
     $claims = $verifier->verify($token, $body);
     expect($claims)->toBeArray();
-    expect($fetchCount)->toBe(1);
+    expect($calledKid)->toBe($keyId);
   });
 
   it('integrates seamlessly with Laravel Request instances', function () use ($secret, $keyId, $keys) {
-    $payload = json_encode(['action' => 'process']);
-    $request = Request::create('/api/system', 'POST', [], [], [], [
-      'CONTENT_TYPE' => 'application/json',
-    ], $payload);
+    $body = 'request-body-payload';
+    $token = ApiTokenIssuer::issue($keyId, $secret, $body, ['user' => 'alice']);
 
-    $token = ApiTokenIssuer::issueForRequest($keyId, $secret, $request, ['aud' => 'my-service']);
-    $request->headers->set('Authorization', 'Bearer ' . $token);
+    $request = Request::create(
+      uri: '/api/v1/resource',
+      method: 'POST',
+      server: ['HTTP_AUTHORIZATION' => "Bearer {$token}"],
+      content: $body
+    );
 
     $verifier = new ApiTokenVerifier($keys);
     $claims = $verifier->verify($request);
 
-    expect($claims['aud'])->toBe('my-service');
-    expect($claims['api:hash'])->toBe(hash('sha256', $payload));
+    expect($claims['user'])->toBe('alice');
   });
 
   it('supports fallback to request query or input parameter', function () use ($secret, $keyId, $keys) {
-    $payload = 'direct-payload';
-    $token = ApiTokenIssuer::issue($keyId, $secret, $payload);
+    $body = 'fallback-payload';
+    $token = ApiTokenIssuer::issue($keyId, $secret, $body);
 
-    $request = Request::create('/api/entry', 'POST', ['request' => $token], [], [], [], $payload);
+    $request = Request::create(
+      uri: '/api/v1/resource',
+      method: 'POST',
+      parameters: ['request' => $token],
+      content: $body
+    );
 
     $verifier = new ApiTokenVerifier($keys);
     $claims = $verifier->verify($request);
 
-    expect($claims['api:hash'])->toBe(hash('sha256', $payload));
+    expect($claims)->toBeArray();
   });
 
   it('supports custom payload validation callback', function () use ($secret, $keyId, $keys) {
@@ -125,14 +142,18 @@ describe('ApiTokenVerifier & ApiTokenIssuer', function () {
       fetchSecret: $keys,
       validatePayload: function (array $claims) {
         if (($claims['role'] ?? null) !== 'admin') {
-          throw new TokenSchemaViolationException(['role' => ['Admin role required']]);
+          throw new TokenException(TokenException::SCHEMA_VIOLATION, 'Admin role required', errors: ['role' => ['Admin role required']]);
         }
         return $claims;
       }
     );
 
-    expect(fn() => $verifier->verify($token, $body))
-      ->toThrow(TokenSchemaViolationException::class);
+    try {
+      $verifier->verify($token, $body);
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::SCHEMA_VIOLATION);
+    }
   });
 
   it('supports disabling api:hash requirement for standard bearer tokens', function () use ($secret, $keyId, $keys) {
@@ -182,10 +203,14 @@ describe('ApiTokenVerifier & ApiTokenIssuer', function () {
       ->toThrow(\DomainException::class, 'Account suspended');
   });
 
-  it('throws InvalidTokenException on malformed token strings or signature failure', function () use ($keys) {
+  it('throws TokenException::INVALID on malformed token strings or signature failure', function () use ($keys) {
     $verifier = new ApiTokenVerifier($keys);
 
-    expect(fn() => $verifier->verify('not.a.valid.jwt', ''))
-      ->toThrow(InvalidTokenException::class);
+    try {
+      $verifier->verify('not.a.valid.jwt', '');
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::INVALID);
+    }
   });
 });

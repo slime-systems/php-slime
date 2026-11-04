@@ -11,10 +11,7 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
 use InvalidArgumentException;
-use SlimeSystems\Tokens\Exceptions\InvalidTokenException;
-use SlimeSystems\Tokens\Exceptions\TokenException;
-use SlimeSystems\Tokens\Exceptions\TokenExpiredException;
-use SlimeSystems\Tokens\Exceptions\TokenSchemaViolationException;
+use SlimeSystems\Tokens\TokenException;
 use stdClass;
 use UnexpectedValueException;
 
@@ -22,12 +19,7 @@ class FirebaseVerifier {
   protected KeyCache $keyCache;
   protected string $issuer;
 
-  /**
-   * @param string $projectId Firebase project ID (aud)
-   * @param string|null $issuer Expected issuer (defaults to https://securetoken.google.com/{projectId})
-   * @param KeyCache|null $keyCache Optional custom or pre-configured KeyCache
-   * /** @var callable|null
-   */
+  /** @var callable|null */
   protected $handleResult;
 
   /**
@@ -63,12 +55,16 @@ class FirebaseVerifier {
 
     $alg = $header['alg'] ?? null;
     if ($alg !== 'RS256') {
-      throw new InvalidTokenException("Invalid Firebase token algorithm [{$alg}]. Expected RS256.");
+      throw new TokenException(TokenException::INVALID, "Invalid Firebase token algorithm [{$alg}]. Expected RS256.");
     }
 
     $kid = $header['kid'] ?? null;
     if (!is_string($kid) || $kid === '') {
-      throw new TokenSchemaViolationException(['kid' => ['The kid header is required for Firebase tokens.']]);
+      throw new TokenException(
+        TokenException::SCHEMA_VIOLATION,
+        'The kid header is required for Firebase tokens.',
+        errors: ['kid' => ['The kid header is required for Firebase tokens.']]
+      );
     }
 
     $certPem = $this->keyCache->fetchKey($kid, $now);
@@ -82,9 +78,9 @@ class FirebaseVerifier {
       $decoded = JWT::decode($token, new Key($certPem, 'RS256'), $headersObj);
       $claims = json_decode(json_encode($decoded), true);
     } catch (ExpiredException|BeforeValidException $e) {
-      throw new TokenExpiredException($e->getMessage(), (int)$e->getCode(), $e);
+      throw new TokenException(TokenException::EXPIRED, $e->getMessage(), (int)$e->getCode(), $e);
     } catch (SignatureInvalidException|UnexpectedValueException|InvalidArgumentException|DomainException $e) {
-      throw new InvalidTokenException("Firebase token verification failed: {$e->getMessage()}", (int)$e->getCode(), $e);
+      throw new TokenException(TokenException::INVALID, "Firebase token verification failed: {$e->getMessage()}", (int)$e->getCode(), $e);
     } finally {
       if ($currentTime !== null) {
         JWT::$timestamp = null;
@@ -106,14 +102,14 @@ class FirebaseVerifier {
   protected function extractHeader(string $token): array {
     $parts = explode('.', trim($token));
     if (count($parts) !== 3) {
-      throw new InvalidTokenException('Invalid JWT structure: token must have 3 segments.');
+      throw new TokenException(TokenException::INVALID, 'Invalid JWT structure: token must have 3 segments.');
     }
 
     $headerJson = JWT::urlsafeB64Decode($parts[0]);
     $header = json_decode($headerJson, true);
 
     if (!is_array($header)) {
-      throw new InvalidTokenException('Invalid JWT header format.');
+      throw new TokenException(TokenException::INVALID, 'Invalid JWT header format.');
     }
 
     return $header;
@@ -125,38 +121,38 @@ class FirebaseVerifier {
   protected function validateClaims(array $claims, int $now): void {
     $aud = $claims['aud'] ?? null;
     if ($aud !== $this->projectId) {
-      throw new TokenSchemaViolationException([
+      throw new TokenException(TokenException::SCHEMA_VIOLATION, "Audience mismatch: expected [{$this->projectId}] but got [{$aud}].", errors: [
         'aud' => ["Audience mismatch: expected [{$this->projectId}] but got [{$aud}]."],
       ]);
     }
 
     $iss = $claims['iss'] ?? null;
     if ($iss !== $this->issuer) {
-      throw new TokenSchemaViolationException([
+      throw new TokenException(TokenException::SCHEMA_VIOLATION, "Issuer mismatch: expected [{$this->issuer}] but got [{$iss}].", errors: [
         'iss' => ["Issuer mismatch: expected [{$this->issuer}] but got [{$iss}]."],
       ]);
     }
 
     $sub = $claims['sub'] ?? null;
     if (!is_string($sub) || $sub === '') {
-      throw new TokenSchemaViolationException([
+      throw new TokenException(TokenException::SCHEMA_VIOLATION, 'The sub claim must be a non-empty string representing the user UID.', errors: [
         'sub' => ['The sub claim must be a non-empty string representing the user UID.'],
       ]);
     }
 
     $authTime = $claims['auth_time'] ?? null;
     if (!is_numeric($authTime) || (int)$authTime > ($now + $this->leewaySeconds)) {
-      throw new TokenExpiredException('auth_time must not be in the future beyond allowable leeway.');
+      throw new TokenException(TokenException::EXPIRED, 'auth_time must not be in the future beyond allowable leeway.');
     }
 
     $iat = $claims['iat'] ?? null;
     if (!is_numeric($iat) || (int)$iat > ($now + $this->leewaySeconds)) {
-      throw new TokenExpiredException('iat must not be in the future beyond allowable leeway.');
+      throw new TokenException(TokenException::EXPIRED, 'iat must not be in the future beyond allowable leeway.');
     }
 
     $exp = $claims['exp'] ?? null;
     if (!is_numeric($exp) || (int)$exp < ($now - $this->leewaySeconds)) {
-      throw new TokenExpiredException('Firebase token has expired.');
+      throw new TokenException(TokenException::EXPIRED, 'Firebase token has expired.');
     }
   }
 

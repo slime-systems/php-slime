@@ -11,9 +11,7 @@ use ParagonIE\Paseto\Keys\SymmetricKey;
 use ParagonIE\Paseto\Parser;
 use ParagonIE\Paseto\Protocol\Version4;
 use ParagonIE\Paseto\ProtocolCollection;
-use SlimeSystems\Tokens\Exceptions\InvalidTokenException;
-use SlimeSystems\Tokens\Exceptions\KeyNotFoundException;
-use SlimeSystems\Tokens\Exceptions\TokenException;
+use SlimeSystems\Tokens\TokenException;
 use TypeError;
 
 class OpaqueToken {
@@ -57,7 +55,7 @@ class OpaqueToken {
     $secret = ($this->fetchSecret)($kid);
 
     if ($secret === null || $secret === '') {
-      throw new KeyNotFoundException("Secret key not found for kid [{$kid}].");
+      throw new TokenException(TokenException::KEY_NOT_FOUND, "Secret key not found for kid [{$kid}].");
     }
 
     $symmetricKey = new SymmetricKey($this->normalizeKey($secret));
@@ -72,7 +70,7 @@ class OpaqueToken {
 
       return $builder->toString();
     } catch (PasetoException|TypeError|InvalidArgumentException $e) {
-      throw new InvalidTokenException("Failed to encrypt PASETO token: {$e->getMessage()}", (int)$e->getCode(), $e);
+      throw new TokenException(TokenException::INVALID, "Failed to encrypt PASETO token: {$e->getMessage()}", (int)$e->getCode(), $e);
     }
   }
 
@@ -102,7 +100,7 @@ class OpaqueToken {
 
     $secret = ($this->fetchSecret)($kid);
     if ($secret === null || $secret === '') {
-      throw new KeyNotFoundException("Secret key not found for kid [{$kid}].");
+      throw new TokenException(TokenException::KEY_NOT_FOUND, "Secret key not found for kid [{$kid}].");
     }
 
     $symmetricKey = new SymmetricKey($this->normalizeKey($secret));
@@ -118,7 +116,7 @@ class OpaqueToken {
 
       return $claims;
     } catch (PasetoException|TypeError|InvalidArgumentException $e) {
-      throw new InvalidTokenException("PASETO decryption failed: {$e->getMessage()}", (int)$e->getCode(), $e);
+      throw new TokenException(TokenException::INVALID, "PASETO decryption failed: {$e->getMessage()}", (int)$e->getCode(), $e);
     }
   }
 

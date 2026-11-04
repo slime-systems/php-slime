@@ -3,9 +3,7 @@
 declare(strict_types = 1);
 
 use Firebase\JWT\JWT;
-use SlimeSystems\Tokens\Exceptions\KeyNotFoundException;
-use SlimeSystems\Tokens\Exceptions\TokenExpiredException;
-use SlimeSystems\Tokens\Exceptions\TokenSchemaViolationException;
+use SlimeSystems\Tokens\TokenException;
 use SlimeSystems\Tokens\Firebase\FirebaseVerifier;
 use SlimeSystems\Tokens\Firebase\KeyCache;
 
@@ -72,8 +70,12 @@ describe('FirebaseVerifier & KeyCache', function () {
 
     $verifier = new FirebaseVerifier(projectId: $projectId, keyCache: $keyCache);
 
-    expect(fn() => $verifier->verify($token, currentTime: $now))
-      ->toThrow(TokenSchemaViolationException::class);
+    try {
+      $verifier->verify($token, currentTime: $now);
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::SCHEMA_VIOLATION);
+    }
   });
 
   it('rejects token with expired exp claim', function () use ($projectId, $kid, $certPem, $privateKeyPem) {
@@ -94,11 +96,15 @@ describe('FirebaseVerifier & KeyCache', function () {
 
     $verifier = new FirebaseVerifier(projectId: $projectId, keyCache: $keyCache);
 
-    expect(fn() => $verifier->verify($token, currentTime: $now))
-      ->toThrow(TokenExpiredException::class);
+    try {
+      $verifier->verify($token, currentTime: $now);
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::EXPIRED);
+    }
   });
 
-  it('throws KeyNotFoundException when token kid is not in certificate distribution', function () use ($projectId, $certPem, $privateKeyPem) {
+  it('throws TokenException::KEY_NOT_FOUND when token kid is not in certificate distribution', function () use ($projectId, $certPem, $privateKeyPem) {
     $now = 1700000000;
     $token = JWT::encode([
       'aud' => $projectId,
@@ -114,8 +120,12 @@ describe('FirebaseVerifier & KeyCache', function () {
 
     $verifier = new FirebaseVerifier(projectId: $projectId, keyCache: $keyCache);
 
-    expect(fn() => $verifier->verify($token, currentTime: $now))
-      ->toThrow(KeyNotFoundException::class);
+    try {
+      $verifier->verify($token, currentTime: $now);
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::KEY_NOT_FOUND);
+    }
   });
 
   it('handles KeyCache http fetching and cache expiration correctly', function () use ($certPem) {

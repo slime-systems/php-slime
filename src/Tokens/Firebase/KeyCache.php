@@ -4,8 +4,7 @@ declare(strict_types = 1);
 
 namespace SlimeSystems\Tokens\Firebase;
 
-use SlimeSystems\Tokens\Exceptions\KeyNotFoundException;
-use SlimeSystems\Tokens\Exceptions\TokenException;
+use SlimeSystems\Tokens\TokenException;
 use Throwable;
 
 class KeyCache {
@@ -34,13 +33,13 @@ class KeyCache {
    * @param string $kid
    * @param int|null $currentTime
    * @return string Certificate PEM string
-   * @throws KeyNotFoundException|TokenException
+   * @throws TokenException
    */
   public function fetchKey(string $kid, ?int $currentTime = null): string {
     $keys = $this->getAllKeys($currentTime);
 
     if (!isset($keys[$kid])) {
-      throw new KeyNotFoundException("Firebase key [{$kid}] not found in certificate distribution.");
+      throw new TokenException(TokenException::KEY_NOT_FOUND, "Firebase key [{$kid}] not found in certificate distribution.");
     }
 
     return $keys[$kid];
@@ -67,6 +66,7 @@ class KeyCache {
    * Fetch keys from remote URL and determine TTL from headers.
    *
    * @return array{0: array<string, string>, 1: int}
+   * @throws TokenException
    */
   protected function fetchFromRemote(int $currentTime): array {
     if ($this->httpFetcher !== null) {
@@ -80,11 +80,11 @@ class KeyCache {
     try {
       $keys = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
     } catch (Throwable $e) {
-      throw new TokenException("Failed to decode Firebase certificate keys: {$e->getMessage()}", (int)$e->getCode(), $e);
+      throw new TokenException(TokenException::INVALID, "Failed to decode Firebase certificate keys: {$e->getMessage()}", (int)$e->getCode(), $e);
     }
 
     if (!is_array($keys) || empty($keys)) {
-      throw new TokenException('Empty or invalid certificate payload from Firebase key distribution.');
+      throw new TokenException(TokenException::INVALID, 'Empty or invalid certificate payload from Firebase key distribution.');
     }
 
     $ttl = $this->determineTtl($headers);
@@ -92,6 +92,9 @@ class KeyCache {
     return [$keys, $ttl];
   }
 
+  /**
+   * @throws TokenException
+   */
   protected function defaultFetch(string $url): array {
     $context = stream_context_create([
       'http' => [
@@ -103,7 +106,7 @@ class KeyCache {
 
     $body = @file_get_contents($url, false, $context);
     if ($body === false) {
-      throw new TokenException("Failed to connect to Firebase key distribution URL [{$url}].");
+      throw new TokenException(TokenException::INVALID, "Failed to connect to Firebase key distribution URL [{$url}].");
     }
 
     $headers = [];
@@ -130,9 +133,7 @@ class KeyCache {
     }
 
     $age = isset($headers['age']) ? (int)$headers['age'] : 0;
-    $ttl = max(60, $maxAge - $age);
-
-    return $ttl;
+    return max(60, $maxAge - $age);
   }
 
   /**

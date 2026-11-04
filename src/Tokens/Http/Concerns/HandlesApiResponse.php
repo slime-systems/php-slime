@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace SlimeSystems\Tokens\Http\Concerns;
 
 use Illuminate\Http\JsonResponse;
+use SlimeSystems\Exceptions\RapidException;
 use Symfony\Component\HttpFoundation\Response as ResponseStatus;
 
 trait HandlesApiResponse {
@@ -29,7 +30,7 @@ trait HandlesApiResponse {
   /**
    * Render a standardized JSON exception response.
    *
-   * @param string $code
+   * @param string|RapidException $codeOrException Identifier string or RapidException instance
    * @param string|null $message
    * @param mixed|null $metadata
    * @param int $status
@@ -37,12 +38,20 @@ trait HandlesApiResponse {
    * @return JsonResponse
    */
   protected function renderException(
-    string  $code,
-    ?string $message = null,
-    mixed   $metadata = null,
-    int     $status = ResponseStatus::HTTP_UNPROCESSABLE_ENTITY,
-    array   $headers = []
+    string|RapidException $codeOrException,
+    ?string               $message = null,
+    mixed                 $metadata = null,
+    int                   $status = ResponseStatus::HTTP_UNPROCESSABLE_ENTITY,
+    array                 $headers = []
   ): JsonResponse {
+    if ($codeOrException instanceof RapidException) {
+      $code = $codeOrException->identifier;
+      $message = $message ?? ($codeOrException->getMessage() ?: null);
+      $metadata = $metadata ?? (!empty($codeOrException->metadata) ? $codeOrException->metadata : null);
+    } else {
+      $code = $codeOrException;
+    }
+
     $exception = [
       'code' => $code,
     ];

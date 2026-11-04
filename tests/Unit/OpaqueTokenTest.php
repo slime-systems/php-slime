@@ -2,8 +2,7 @@
 
 declare(strict_types = 1);
 
-use SlimeSystems\Tokens\Exceptions\InvalidTokenException;
-use SlimeSystems\Tokens\Exceptions\KeyNotFoundException;
+use SlimeSystems\Tokens\TokenException;
 use SlimeSystems\Tokens\State\ContinuationToken;
 use SlimeSystems\Tokens\State\OpaqueToken;
 
@@ -17,15 +16,15 @@ describe('OpaqueToken & ContinuationToken (PASETO v4.local)', function () {
 
     $token = $opaque->encrypt($payload, keyId: $keyId);
 
-    expect($token)->toBeString();
-    expect($token)->toStartWith('v4.local.');
-    expect($opaque->peekFooter($token))->toBe($keyId);
+    expect($token)->toBeString()
+      ->and($token)->toStartWith('v4.local.')
+      ->and($opaque->peekFooter($token))->toBe($keyId);
 
     $decrypted = $opaque->decrypt($token);
     expect($decrypted)->toMatchArray($payload);
   });
 
-  it('detects ciphertext tampering and rejects with InvalidTokenException', function () use ($secret) {
+  it('detects ciphertext tampering and rejects with TokenException::INVALID', function () use ($secret) {
     $opaque = new OpaqueToken($secret);
     $token = $opaque->encrypt(['data' => 'confidential']);
 
@@ -36,11 +35,15 @@ describe('OpaqueToken & ContinuationToken (PASETO v4.local)', function () {
     $parts[2] = $tamperedPayload;
     $tampered = implode('.', $parts);
 
-    expect(fn() => $opaque->decrypt($tampered))
-      ->toThrow(InvalidTokenException::class);
+    try {
+      $opaque->decrypt($tampered);
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::INVALID);
+    }
   });
 
-  it('detects footer / key ID tampering and rejects with KeyNotFoundException or InvalidTokenException', function () use ($secret) {
+  it('detects footer / key ID tampering and rejects with TokenException', function () use ($secret) {
     $opaque = new OpaqueToken([
       'k1' => $secret,
       'k2' => 'another-secret-key-32-bytes-long!',
@@ -54,13 +57,17 @@ describe('OpaqueToken & ContinuationToken (PASETO v4.local)', function () {
 
     // Decrypting with k2's key will fail authentication
     expect(fn() => $opaque->decrypt($tampered))
-      ->toThrow(InvalidTokenException::class);
+      ->toThrow(TokenException::class);
   });
 
-  it('throws KeyNotFoundException when keyId does not exist', function () use ($secret) {
+  it('throws TokenException::KEY_NOT_FOUND when keyId does not exist', function () use ($secret) {
     $opaque = new OpaqueToken(['k1' => $secret]);
-    expect(fn() => $opaque->encrypt(['test' => 1], keyId: 'unknown_k'))
-      ->toThrow(KeyNotFoundException::class);
+    try {
+      $opaque->encrypt(['test' => 1], keyId: 'unknown_k');
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::KEY_NOT_FOUND);
+    }
   });
 
   it('issues and decodes ContinuationToken cursors with subject verification', function () use ($secret, $keyId) {
@@ -73,8 +80,8 @@ describe('OpaqueToken & ContinuationToken (PASETO v4.local)', function () {
     ];
 
     $token = $cursorManager->issue('trading-document/stream', $cursor);
-    expect($token)->toBeString();
-    expect($token)->toStartWith('v4.local.');
+    expect($token)->toBeString()
+      ->and($token)->toStartWith('v4.local.');
 
     $decodedData = $cursorManager->decode($token, 'trading-document/stream');
     expect($decodedData)->toMatchArray($cursor);
@@ -84,8 +91,12 @@ describe('OpaqueToken & ContinuationToken (PASETO v4.local)', function () {
     $cursorManager = new ContinuationToken($secret);
     $token = $cursorManager->issue('stream-A', ['id' => 1]);
 
-    expect(fn() => $cursorManager->decode($token, 'stream-B'))
-      ->toThrow(InvalidTokenException::class);
+    try {
+      $cursorManager->decode($token, 'stream-B');
+      $this->fail('Expected TokenException to be thrown');
+    } catch (TokenException $e) {
+      expect($e->identifier)->toBe(TokenException::INVALID);
+    }
   });
 
   it('allows fetchSecret and handleResult to throw custom exceptions in OpaqueToken', function () use ($secret, $keyId) {
@@ -103,10 +114,9 @@ describe('OpaqueToken & ContinuationToken (PASETO v4.local)', function () {
     $result = $opaque->decrypt($token, handleResult: function (array $claims) {
       return strtoupper($claims['data']);
     });
-    expect($result)->toBe('SAMPLE');
-
-    expect(fn() => $opaque->decrypt($token, handleResult: function () {
-      throw new \LogicException('Permission denied');
-    }))->toThrow(\LogicException::class, 'Permission denied');
+    expect($result)->toBe('SAMPLE')
+      ->and(fn() => $opaque->decrypt($token, handleResult: function () {
+        throw new \LogicException('Permission denied');
+      }))->toThrow(\LogicException::class, 'Permission denied');
   });
 });

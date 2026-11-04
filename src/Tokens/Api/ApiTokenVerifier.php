@@ -12,12 +12,8 @@ use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
-use SlimeSystems\Tokens\Concerns\ValidatesTokenPayload;
-use SlimeSystems\Tokens\Exceptions\InvalidTokenException;
-use SlimeSystems\Tokens\Exceptions\KeyNotFoundException;
-use SlimeSystems\Tokens\Exceptions\TokenException;
-use SlimeSystems\Tokens\Exceptions\TokenExpiredException;
-use SlimeSystems\Tokens\Exceptions\TokenSchemaViolationException;
+use SlimeSystems\Tokens\TokenException;
+use SlimeSystems\Tokens\ValidatesTokenPayload;
 use stdClass;
 use UnexpectedValueException;
 
@@ -81,6 +77,7 @@ class ApiTokenVerifier {
 
   /**
    * Extract token from string or Request.
+   * @throws TokenException
    */
   public function extractToken(string|Request $tokenOrRequest): string {
     if (is_string($tokenOrRequest)) {
@@ -98,7 +95,7 @@ class ApiTokenVerifier {
       return trim($paramToken);
     }
 
-    throw new InvalidTokenException('Bearer token was not provided in request.');
+    throw new TokenException(TokenException::INVALID, 'Bearer token was not provided in request.');
   }
 
   /**
@@ -123,23 +120,28 @@ class ApiTokenVerifier {
    * @param string $rawBody
    * @param int|null $currentTime
    * @return mixed
+   * @throws TokenException
    */
   public function verifyTokenAndBody(string $token, string $rawBody = '', ?int $currentTime = null): mixed {
     $header = $this->extractHeader($token);
 
     $alg = $header['alg'] ?? null;
     if (!in_array($alg, $this->allowedAlgorithms, true)) {
-      throw new InvalidTokenException("Algorithm [{$alg}] is not supported or allowed.");
+      throw new TokenException(TokenException::INVALID, "Algorithm [$alg] is not supported or allowed.");
     }
 
     $kid = $header['kid'] ?? null;
     if (!is_string($kid) || $kid === '') {
-      throw new TokenSchemaViolationException(['kid' => ['The kid header is required and must be a non-empty string.']]);
+      throw new TokenException(
+        TokenException::SCHEMA_VIOLATION,
+        'The kid header is required and must be a non-empty string.',
+        errors: ['kid' => ['The kid header is required and must be a non-empty string.']]
+      );
     }
 
     $secret = ($this->fetchSecret)($kid, $header);
     if ($secret === null || $secret === '') {
-      throw new KeyNotFoundException("API Key with kid [{$kid}] was not found.");
+      throw new TokenException(TokenException::KEY_NOT_FOUND, "API Key with kid [$kid] was not found.");
     }
 
     try {
@@ -147,9 +149,9 @@ class ApiTokenVerifier {
       $decoded = JWT::decode($token, new Key($secret, $alg), $headersObj);
       $claims = json_decode(json_encode($decoded), true);
     } catch (ExpiredException|BeforeValidException $e) {
-      throw new TokenExpiredException($e->getMessage(), (int)$e->getCode(), $e);
+      throw new TokenException(TokenException::EXPIRED, $e->getMessage(), (int)$e->getCode(), $e);
     } catch (SignatureInvalidException|UnexpectedValueException|InvalidArgumentException|DomainException $e) {
-      throw new InvalidTokenException($e->getMessage(), (int)$e->getCode(), $e);
+      throw new TokenException(TokenException::INVALID, $e->getMessage(), (int)$e->getCode(), $e);
     }
 
     // Validate iat
@@ -179,18 +181,19 @@ class ApiTokenVerifier {
 
   /**
    * Inspect and parse the unverified JWT header.
+   * @throws TokenException
    */
   protected function extractHeader(string $token): array {
     $segments = explode('.', $token);
     if (count($segments) !== 3) {
-      throw new InvalidTokenException('Invalid JWT structure: token must contain 3 segments.');
+      throw new TokenException(TokenException::INVALID, 'Invalid JWT structure: token must contain 3 segments.');
     }
 
     $headerJson = JWT::urlsafeB64Decode($segments[0]);
     $header = json_decode($headerJson, true);
 
     if (!is_array($header)) {
-      throw new InvalidTokenException('Invalid JWT header format.');
+      throw new TokenException(TokenException::INVALID, 'Invalid JWT header format.');
     }
 
     return $header;
