@@ -81,6 +81,7 @@ class WalletProcess {
   use ProcessHelper;
 
   public function __construct(?array $state = null) {
+    $this->registerEventHandlers();
     $this->state = $this->mergeState([
       'opened' => false,
       'owner' => null,

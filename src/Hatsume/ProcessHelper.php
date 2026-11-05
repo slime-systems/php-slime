@@ -3,6 +3,8 @@
 namespace SlimeSystems\Hatsume;
 
 use Closure;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 
 trait ProcessHelper {
   /** @var array<string, Closure> */
@@ -21,15 +23,9 @@ trait ProcessHelper {
     return $this->pendingEvents;
   }
 
-  public function getEventHandlers(): array {
-    if (empty($this->eventHandlers)) {
-      $this->registerEventHandlers();
-    }
-    return $this->eventHandlers;
-  }
-
   /**
    * Hook for registering event handlers. Override in process classes.
+   * Be sure to call this method in the constructor of classes that use this trait.
    */
   protected function registerEventHandlers(): void {
   }
@@ -41,36 +37,16 @@ trait ProcessHelper {
     $this->eventHandlers[$eventClass] = $handler;
   }
 
-  protected function apply(object|array|null ...$events): void {
-    if (empty($this->eventHandlers)) {
-      $this->registerEventHandlers();
-    }
-
-    $flattenedEvents = [];
-    foreach ($events as $event) {
-      if ($event === null) {
-        continue;
-      }
-      if (is_array($event)) {
-        array_push($flattenedEvents, ...$event);
-      } else {
-        $flattenedEvents[] = $event;
-      }
-    }
-
-    foreach ($flattenedEvents as $event) {
-      if ($event === null) {
-        continue;
-      }
-      $eventClass = get_class($event);
-
-      if (isset($this->eventHandlers[$eventClass])) {
-        // Dynamically binds $this context inside the closure
-        $this->eventHandlers[$eventClass]->call($this, $event);
-      }
-
-      $this->pendingEvents[] = $event;
-    }
+  private function apply(mixed ...$events): array {
+    $handlers = $this->eventHandlers;
+    return new Collection($events)
+      ->flatMap(Arr::wrap(...))
+      ->filter()
+      ->each(function (object $event) use ($handlers) {
+        $handlers[$event::class]?->__invoke($event);
+        $this->pendingEvents[] = $event;
+      })
+      ->all();
   }
 
   protected function mergeState(array $default, ?array $recorded): array {

@@ -26,6 +26,7 @@ class DummyProcess {
   use ProcessHelper;
 
   public function __construct(?array $initialState = null) {
+    $this->registerEventHandlers();
     $this->state = $this->mergeState([
       'status' => 'draft',
       'items_count' => 0,
@@ -70,6 +71,10 @@ class DummyProcess {
 class SubProcessA {
   use ProcessHelper;
 
+  public function __construct(?array $initialState = null) {
+    $this->registerEventHandlers();
+  }
+
   public function trigger(): void {
     $this->apply(new OrderItemAdded());
   }
@@ -83,6 +88,10 @@ class SubProcessA {
 
 class SubProcessB {
   use ProcessHelper;
+
+  public function __construct(?array $initialState = null) {
+    $this->registerEventHandlers();
+  }
 
   public function trigger(): void {
     $this->apply(new OrderItemAdded());
@@ -175,15 +184,5 @@ describe('ProcessHelper', function () {
 
     expect($processA->state()['sub'])->toBe('A')
       ->and($processB->state()['sub'])->toBe('B');
-  });
-
-  test('lazily registers event handlers on getEventHandlers', function () {
-    $process = new DummyProcess();
-
-    expect($process->getEventHandlers())->toHaveKeys([
-      OrderItemAdded::class,
-      OrderSubmitted::class,
-      OrderCancelled::class,
-    ]);
   });
 });

@@ -90,9 +90,10 @@ class AccountProcess {
   use ProcessHelper;
 
   public function __construct(
-    ?array           $state = null,
-    private ?Closure $generateId = null,
+    ?array                    $state = null,
+    private readonly ?Closure $generateId = null,
   ) {
+    $this->registerEventHandlers();
     $this->state = $this->mergeState([
       'id' => null,
       'created' => false,
