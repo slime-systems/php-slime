@@ -89,7 +89,7 @@ class ApiTokenVerifier {
       return $bearer;
     }
 
-    // Support fallback to input('request') (seen in thai-document APIController)
+    // Support fallback to input('request')
     $paramToken = $tokenOrRequest->input('request');
     if (is_string($paramToken) && $paramToken !== '') {
       return trim($paramToken);
