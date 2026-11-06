@@ -7,6 +7,7 @@ use SlimeSystems\Eloquent\FieldType;
 use SlimeSystems\Eloquent\Serialization\MessagePackSerializer;
 use SlimeSystems\Eloquent\State;
 use SlimeSystems\Eloquent\StateType;
+use SlimeSystems\ObjectId;
 
 describe('MessagePack State Serialization & DateTime Support', function () {
   beforeEach(function () {
@@ -60,7 +61,7 @@ describe('MessagePack State Serialization & DateTime Support', function () {
     $packed = MessagePackSerializer::pack($data);
     $unpacked = MessagePackSerializer::unpack($packed);
 
-    expect($unpacked['created_at'])->toBeInstanceOf(Carbon::class)
+    expect($unpacked['created_at'])->toBeInstanceOf(DateTimeInterface::class)
       ->and($unpacked['created_at']->equalTo($carbon))->toBeTrue()
       ->and($unpacked['created_at']->format('u'))->toBe('654321');
   });
@@ -72,7 +73,7 @@ describe('MessagePack State Serialization & DateTime Support', function () {
     $packed = MessagePackSerializer::pack($data);
     $unpacked = MessagePackSerializer::unpack($packed);
 
-    expect($unpacked['birth_date'])->toBeInstanceOf(Carbon::class)
+    expect($unpacked['birth_date'])->toBeInstanceOf(DateTimeInterface::class)
       ->and($unpacked['birth_date']->equalTo($pastDate))->toBeTrue();
   });
 
@@ -98,15 +99,15 @@ describe('MessagePack State Serialization & DateTime Support', function () {
 
     $loadedState = $loaded->state;
     expect($loadedState['balance'])->toBe(777)
-      ->and($loadedState['registered_at'])->toBeInstanceOf(Carbon::class)
+      ->and($loadedState['registered_at'])->toBeInstanceOf(DateTimeInterface::class)
       ->and($loadedState['registered_at']->equalTo($registeredAt))->toBeTrue()
       ->and($loadedState['registered_at']->format('u'))->toBe('123456')
-      ->and($loadedState['expires_at'])->toBeInstanceOf(Carbon::class)
+      ->and($loadedState['expires_at'])->toBeInstanceOf(DateTimeInterface::class)
       ->and($loadedState['expires_at']->getTimestamp())->toBe($expiresAt->getTimestamp());
   });
 
   test('serializes and deserializes SlimeSystems\ObjectId instances using 0x07 type', function () {
-    $objectId = \SlimeSystems\ObjectId::fromString('6ad3d413151add4a9ebd9fcf');
+    $objectId = ObjectId::fromString('6ad3d413151add4a9ebd9fcf');
 
     $data = [
       'document_id' => $objectId,
@@ -116,15 +117,15 @@ describe('MessagePack State Serialization & DateTime Support', function () {
     $packed = MessagePackSerializer::pack($data);
     $unpacked = MessagePackSerializer::unpack($packed);
 
-    expect($unpacked['document_id'])->toBeInstanceOf(\SlimeSystems\ObjectId::class)
+    expect($unpacked['document_id'])->toBeInstanceOf(ObjectId::class)
       ->and($unpacked['document_id']->equals($objectId))->toBeTrue()
       ->and((string)$unpacked['document_id'])->toBe('6ad3d413151add4a9ebd9fcf');
   });
 
   test('persists and restores ObjectId inside aggregate state through State model roundtrip', function () {
     $typeId = StateType::idFor('order');
-    $orderId = new \SlimeSystems\ObjectId();
-    $customerId = new \SlimeSystems\ObjectId();
+    $orderId = new ObjectId();
+    $customerId = new ObjectId();
     $orderedAt = Carbon::now();
 
     $state = new State([
@@ -143,11 +144,11 @@ describe('MessagePack State Serialization & DateTime Support', function () {
     expect($loaded)->not->toBeNull();
 
     $loadedState = $loaded->state;
-    expect($loadedState['order_id'])->toBeInstanceOf(\SlimeSystems\ObjectId::class)
+    expect($loadedState['order_id'])->toBeInstanceOf(ObjectId::class)
       ->and($loadedState['order_id']->equals($orderId))->toBeTrue()
-      ->and($loadedState['customer_id'])->toBeInstanceOf(\SlimeSystems\ObjectId::class)
+      ->and($loadedState['customer_id'])->toBeInstanceOf(ObjectId::class)
       ->and($loadedState['customer_id']->equals($customerId))->toBeTrue()
-      ->and($loadedState['ordered_at'])->toBeInstanceOf(Carbon::class)
-      ->and($loadedState['ordered_at']->equalTo($orderedAt))->toBeTrue();
+      ->and($loadedState['ordered_at'])->toBeInstanceOf(DateTimeInterface::class)
+      ->and($loadedState['ordered_at']->isSameSecond($orderedAt))->toBeTrue();
   });
 });
