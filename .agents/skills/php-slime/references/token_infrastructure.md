@@ -125,14 +125,14 @@ A lightweight controller concern for standard JSON response formatting:
 ```php
 namespace App\Http\Controllers;
 
-use SlimeSystems\Tokens\Http\Concerns\HandlesApiResponse;
+use SlimeSystems\Http\Concerns\HandlesApiResponse;
 
 class ApiController extends Controller {
     use HandlesApiResponse;
 
     public function show($id) {
         $data = ['id' => $id, 'title' => 'Example'];
-        return $this->renderData($data);
+        return $this->renderSuccess($data);
     }
 
     public function fail() {

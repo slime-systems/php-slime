@@ -1,8 +1,6 @@
 <?php
 
-declare(strict_types = 1);
-
-namespace SlimeSystems\Tokens\Http\Concerns;
+namespace SlimeSystems\Http\Concerns;
 
 use Illuminate\Http\JsonResponse;
 use SlimeSystems\Exceptions\RapidException;
@@ -69,3 +67,4 @@ trait HandlesApiResponse {
     ], $status, $headers);
   }
 }
+

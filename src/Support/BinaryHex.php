@@ -8,9 +8,9 @@ use InvalidArgumentException;
 use JsonSerializable;
 use Stringable;
 
-class BinaryHex implements JsonSerializable, Stringable {
+readonly class BinaryHex implements JsonSerializable, Stringable {
   public function __construct(
-    private readonly string $binary,
+    private string $binary,
   ) {
   }
 
