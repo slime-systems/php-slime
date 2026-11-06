@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use PDOException;
-use SlimeSystems\Hatsume\EventDispatcher;
 
 class Interactor {
   /**
@@ -94,10 +93,10 @@ class Interactor {
     $initialNextPosition = (int)($stateRecord->getAttribute('next_position') ?? 1);
 
     foreach ($commands as $command) {
-      if (method_exists($process, 'call')) {
-        $process->call($command);
-      } elseif (is_callable($process)) {
+      if (is_callable($process)) {
         $process($command);
+      } elseif (method_exists($process, 'call')) {
+        $process->call($command);
       }
     }
 
