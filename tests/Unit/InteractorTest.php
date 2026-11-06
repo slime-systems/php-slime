@@ -170,7 +170,7 @@ describe('Eloquent Interactor', function () {
       eventHandler: $eventHandler,
     );
 
-    $events = $interactor->call(new OpenWalletCommand(owner: 'Alice', initialBalance: 100));
+    $events = $interactor(new OpenWalletCommand(owner: 'Alice', initialBalance: 100));
 
     // Returns pending events
     expect($events)->toHaveCount(1)
@@ -189,10 +189,10 @@ describe('Eloquent Interactor', function () {
       ->and($record->next_position)->toBe(2)
       ->and($record->lock_version)->toBe(0);
 
-    // Verifies event dispatching and metadata
+    // Verifies event dispatching and context
     expect($dispatchedEvents)->toHaveCount(1)
       ->and($dispatchedMetadata['state_key'])->toBe(['type' => 'wallet', 'id' => 'wallet-001'])
-      ->and($dispatchedMetadata['next_position'])->toBe(1);
+      ->and($dispatchedMetadata['position'])->toBe(1);
   });
 
   test('supports integer and bigint state_id values', function () {
@@ -203,7 +203,7 @@ describe('Eloquent Interactor', function () {
       loadProcess: fn(?array $state = null) => new WalletProcess($state),
     );
 
-    $events = $interactor->call(new OpenWalletCommand(owner: 'BigIntUser', initialBalance: 1000));
+    $events = $interactor(new OpenWalletCommand(owner: 'BigIntUser', initialBalance: 1000));
     expect($events)->toHaveCount(1);
 
     $record = State::findByTypeAndId('account', $bigintId);
@@ -218,7 +218,7 @@ describe('Eloquent Interactor', function () {
       loadProcess: fn(?array $state = null) => new WalletProcess($state),
     );
 
-    $events = $interactor->call(new OpenWalletCommand(owner: 'ColonUser', initialBalance: 50));
+    $events = $interactor(new OpenWalletCommand(owner: 'ColonUser', initialBalance: 50));
     expect($events)->toHaveCount(1);
 
     $record = State::findByTypeAndId('wallet', 'user-999');
@@ -241,7 +241,7 @@ describe('Eloquent Interactor', function () {
       loadProcess: $loadProcess,
       eventHandler: $eventHandler,
     );
-    $interactor1->call(new OpenWalletCommand(owner: 'Bob', initialBalance: 50));
+    $interactor1(new OpenWalletCommand(owner: 'Bob', initialBalance: 50));
 
     // Second call: Deposit funds
     $interactor2 = new Interactor(
@@ -249,7 +249,7 @@ describe('Eloquent Interactor', function () {
       loadProcess: $loadProcess,
       eventHandler: $eventHandler,
     );
-    $interactor2->call(new DepositFundsCommand(amount: 25));
+    $interactor2(new DepositFundsCommand(amount: 25));
 
     // Check database state
     $record = State::findByTypeAndId('wallet', 'wallet-002');
@@ -257,10 +257,10 @@ describe('Eloquent Interactor', function () {
       ->and($record->next_position)->toBe(3) // 1 + 1 + 1
       ->and($record->lock_version)->toBe(1); // incremented on update
 
-    // Check metadata history
+    // Check context history
     expect($history)->toHaveCount(2)
-      ->and($history[0]['metadata']['next_position'])->toBe(1)
-      ->and($history[1]['metadata']['next_position'])->toBe(2);
+      ->and($history[0]['metadata']['position'])->toBe(1)
+      ->and($history[1]['metadata']['position'])->toBe(2);
   });
 
   test('supports batching multiple commands in a single call', function () {
@@ -269,7 +269,7 @@ describe('Eloquent Interactor', function () {
       loadProcess: fn(?array $state = null) => new WalletProcess($state),
     );
 
-    $events = $interactor->call(
+    $events = $interactor(
       new OpenWalletCommand(owner: 'Charlie', initialBalance: 10),
       new DepositFundsCommand(amount: 20),
       new DepositFundsCommand(amount: 30),
@@ -294,7 +294,7 @@ describe('Eloquent Interactor', function () {
       loadProcess: fn(?array $state = null) => new WalletProcess($state),
     );
 
-    $interactor->call(new OpenWalletCommand(owner: 'David', initialBalance: 200));
+    $interactor(new OpenWalletCommand(owner: 'David', initialBalance: 200));
 
     expect($lazyKeyCalled)->toBeTrue();
 
@@ -318,7 +318,7 @@ describe('Eloquent Interactor', function () {
       },
     );
 
-    $events = $interactor->call(new NoopCommand());
+    $events = $interactor(new NoopCommand());
 
     expect($events)->toBeEmpty()
       ->and($lazyKeyCalled)->toBeFalse()
@@ -337,7 +337,7 @@ describe('Eloquent Interactor', function () {
     );
 
     // Deposit on unopened wallet throws RuntimeException
-    expect(fn() => $interactor->call(new DepositFundsCommand(amount: 50)))
+    expect(fn() => $interactor(new DepositFundsCommand(amount: 50)))
       ->toThrow(RuntimeException::class, 'Cannot deposit to unopened wallet.');
 
     expect($dispatched)->toBeFalse()
@@ -371,7 +371,7 @@ describe('Eloquent Interactor', function () {
       maxRetries: 1,
     );
 
-    expect(fn() => $interactor->call(new DepositFundsCommand(amount: 50)))
+    expect(fn() => $interactor(new DepositFundsCommand(amount: 50)))
       ->toThrow(StaleRecordException::class, 'Concurrent write detected for state record.');
 
     expect($dispatched)->toBeFalse();
@@ -396,7 +396,7 @@ describe('Eloquent Interactor', function () {
       loadProcess: fn(?array $state = null) => new WalletProcess($state),
     );
 
-    expect(fn() => $interactor->call(new OpenWalletCommand(owner: 'Duplicate', initialBalance: 50)))
+    expect(fn() => $interactor(new OpenWalletCommand(owner: 'Duplicate', initialBalance: 50)))
       ->toThrow(StaleRecordException::class);
   });
 
@@ -446,7 +446,7 @@ describe('Eloquent Interactor', function () {
       maxRetries: 3,
     );
 
-    $events = $interactor->call(new DepositFundsCommand(amount: 50));
+    $events = $interactor(new DepositFundsCommand(amount: 50));
 
     expect($events)->toHaveCount(1)
       ->and($callCount)->toBe(2);
@@ -479,9 +479,30 @@ describe('Eloquent Interactor', function () {
       maxRetries: 1,
     );
 
-    expect(fn() => $interactor->call(new DepositFundsCommand(amount: 50)))
+    expect(fn() => $interactor(new DepositFundsCommand(amount: 50)))
       ->toThrow(StaleRecordException::class);
 
     expect($callCount)->toBe(1);
+  });
+
+  test('forwards caller context and execution state to event handler', function () {
+    $dispatchedContext = null;
+    $interactor = (new Interactor(
+      stateKey: 'wallet:user-ctx',
+      loadProcess: fn(?array $state = null) => new WalletProcess($state),
+      eventHandler: function ($events, array $context) use (&$dispatchedContext) {
+        $dispatchedContext = $context;
+      },
+    ))->withContext(['secret' => 'super-secret-key', 'actor_id' => 'usr-123']);
+
+    $interactor(new OpenWalletCommand(owner: 'ContextUser', initialBalance: 100));
+
+    expect($dispatchedContext)->toMatchArray([
+      'secret' => 'super-secret-key',
+      'actor_id' => 'usr-123',
+      'state_key' => 'wallet:user-ctx',
+      'position' => 1,
+      'is_replay' => false,
+    ]);
   });
 });

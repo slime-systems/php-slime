@@ -16,6 +16,8 @@ class Interactor {
    * @param callable(array<string, mixed>, ?Model=): object $loadProcess Factory creating the process aggregate
    * @param (callable(mixed, array<string, mixed>): void)|null $eventHandler Optional handler to dispatch events
    * @param class-string<Model>|Model $model Model class name or instance
+   * @param int $maxRetries
+   * @param array<string, mixed> $context Optional execution context passed alongside dispatched events
    */
   public function __construct(
     private readonly mixed        $stateKey,
@@ -23,7 +25,19 @@ class Interactor {
     private readonly mixed        $eventHandler = null,
     private readonly string|Model $model = State::class,
     private readonly int          $maxRetries = 100,
+    private array                 $context = [],
   ) {
+  }
+
+  /**
+   * Returns a clone of the interactor with additional execution context.
+   *
+   * @param array<string, mixed> $context
+   */
+  public function withContext(array $context): self {
+    $clone = clone $this;
+    $clone->context = array_merge($clone->context, $context);
+    return $clone;
   }
 
   /**
@@ -34,18 +48,6 @@ class Interactor {
    * @throws StaleRecordException If concurrent write or duplicate key is detected
    */
   public function __invoke(object|array ...$commands): array {
-    return $this->call(...$commands);
-  }
-
-  /**
-   * Executes domain commands, persists the aggregate state, and dispatches events.
-   * Automatically retries up to $maxRetries on concurrent write conflicts.
-   *
-   * @param object|array<int, object> ...$commands
-   * @return list<object>
-   * @throws StaleRecordException
-   */
-  public function call(object|array ...$commands): array {
     if (count($commands) === 1 && is_array($commands[0])) {
       $commands = $commands[0];
     }
@@ -90,9 +92,6 @@ class Interactor {
     $process = $this->loadProcessInstance($currentState, $stateRecord);
 
     $initialNextPosition = (int)($stateRecord->getAttribute('next_position') ?? 1);
-    $metadataBuffer = [
-      'next_position' => $initialNextPosition,
-    ];
 
     foreach ($commands as $command) {
       if (method_exists($process, 'call')) {
@@ -174,10 +173,14 @@ class Interactor {
       $stateRecord->setAttribute('lock_version', $currentLockVersion + 1);
     }
 
-    $metadataBuffer['state_key'] = $savedStateKey;
-
     if ($this->eventHandler !== null) {
-      $this->dispatchEvents($pendingEvents, $metadataBuffer);
+      $context = array_merge($this->context, [
+        'state_key' => $savedStateKey,
+        'position' => $initialNextPosition,
+        'is_replay' => false,
+      ]);
+
+      $this->dispatchEvents($pendingEvents, $context);
     }
 
     return $pendingEvents;
@@ -312,18 +315,12 @@ class Interactor {
   }
 
   /**
-   * Dispatches events and metadata to the registered handler.
+   * Dispatches events and context to the registered handler.
    *
    * @param list<object> $events
-   * @param array<string, mixed> $metadata
+   * @param array<string, mixed> $context
    */
-  private function dispatchEvents(array $events, array $metadata): void {
-    if ($this->eventHandler instanceof EventDispatcher) {
-      $this->eventHandler->call($events, $metadata);
-    } elseif (is_callable($this->eventHandler)) {
-      ($this->eventHandler)($events, $metadata);
-    } elseif (is_object($this->eventHandler) && method_exists($this->eventHandler, 'call')) {
-      $this->eventHandler->call($events, $metadata);
-    }
+  private function dispatchEvents(array $events, array $context): void {
+    ($this->eventHandler)($events, $context);
   }
 }
