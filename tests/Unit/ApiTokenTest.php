@@ -134,28 +134,6 @@ describe('ApiTokenVerifier & ApiTokenIssuer', function () {
     expect($claims)->toBeArray();
   });
 
-  it('supports custom payload validation callback', function () use ($secret, $keyId, $keys) {
-    $body = 'custom';
-    $token = ApiTokenIssuer::issue($keyId, $secret, $body, ['role' => 'user']);
-
-    $verifier = new ApiTokenVerifier(
-      fetchSecret: $keys,
-      validatePayload: function (array $claims) {
-        if (($claims['role'] ?? null) !== 'admin') {
-          throw new TokenException(TokenException::SCHEMA_VIOLATION, 'Admin role required', errors: ['role' => ['Admin role required']]);
-        }
-        return $claims;
-      }
-    );
-
-    try {
-      $verifier->verify($token, $body);
-      $this->fail('Expected TokenException to be thrown');
-    } catch (TokenException $e) {
-      expect($e->identifier)->toBe(TokenException::SCHEMA_VIOLATION);
-    }
-  });
-
   it('supports disabling api:hash requirement for standard bearer tokens', function () use ($secret, $keyId, $keys) {
     $token = ApiTokenIssuer::issue($keyId, $secret, includeApiHash: false);
 

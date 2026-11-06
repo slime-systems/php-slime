@@ -34,7 +34,6 @@ class ApiTokenVerifier {
    * @param bool $requireApiHash Whether the api:hash claim is required (default: true)
    * @param callable|null $handleResult Optional result handler callable (array $claims, array $header): mixed
    * @param array $allowedAlgorithms Allowed JWT algorithms (default: ['HS256'])
-   * @param callable|null $validatePayload Deprecated alias for handleResult
    */
   public function __construct(
     callable|array            $fetchSecret,
@@ -44,7 +43,6 @@ class ApiTokenVerifier {
     protected readonly bool   $requireApiHash = true,
     ?callable                 $handleResult = null,
     protected readonly array  $allowedAlgorithms = ['HS256'],
-    ?callable                 $validatePayload = null
   ) {
     if (is_array($fetchSecret)) {
       $this->fetchSecret = fn(string $kid) => $fetchSecret[$kid] ?? null;
@@ -52,7 +50,7 @@ class ApiTokenVerifier {
       $this->fetchSecret = $fetchSecret;
     }
 
-    $this->handleResult = $handleResult ?? $validatePayload;
+    $this->handleResult = $handleResult;
   }
 
   /**
