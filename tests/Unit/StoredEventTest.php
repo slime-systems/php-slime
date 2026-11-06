@@ -51,7 +51,7 @@ describe('StoredEvent Eloquent Model', function () {
 
     $metadata = [
       'state_key' => ['type' => 'order', 'id' => 'ord-123'],
-      'next_position' => 1,
+      'position' => 1,
     ];
 
     $savedCount = StoredEvent::persistEvents([$event1, $event2], $metadata);
@@ -78,7 +78,7 @@ describe('StoredEvent Eloquent Model', function () {
 
     $metadata = [
       'state_key' => 'account:456',
-      'next_position' => 5,
+      'position' => 5,
     ];
 
     $count = StoredEvent::persistEvents([$persistentEvent, $transitoryEvent], $metadata);
@@ -94,19 +94,19 @@ describe('StoredEvent Eloquent Model', function () {
   test('returns 0 without touching database when all events are transitory', function () {
     $transitoryEvent = new StoredTestTransitoryEvent(['alert' => 'ping']);
 
-    // Even without state_key and next_position, transitory events exit early
+    // Even without state_key and position, transitory events exit early
     $count = StoredEvent::persistEvents([$transitoryEvent], []);
 
     expect($count)->toBe(0)
       ->and(StoredEvent::count())->toBe(0);
   });
 
-  test('throws InvalidArgumentException when metadata lacks state_key or next_position for persistent events', function () {
+  test('throws InvalidArgumentException when context lacks state_key or position for persistent events', function () {
     $event = new StoredTestDomainEvent(['valid' => true]);
 
     expect(fn() => StoredEvent::persistEvents([$event], ['state_key' => 'test']))
       ->toThrow(InvalidArgumentException::class)
-      ->and(fn() => StoredEvent::persistEvents([$event], ['next_position' => 1]))
+      ->and(fn() => StoredEvent::persistEvents([$event], ['position' => 1]))
       ->toThrow(InvalidArgumentException::class);
   });
 
@@ -115,7 +115,7 @@ describe('StoredEvent Eloquent Model', function () {
 
     StoredEvent::persistEvents([$original], [
       'state_key' => 'user:999',
-      'next_position' => 1,
+      'position' => 1,
     ]);
 
     $stored = StoredEvent::forAggregate('user:999')->first();
@@ -149,7 +149,7 @@ describe('StoredEvent Eloquent Model', function () {
 
     StoredEvent::persistEvents($events, [
       'state_key' => 'stream:1',
-      'next_position' => 10,
+      'position' => 10,
     ]);
 
     $filtered = StoredEvent::forAggregate('stream:1')

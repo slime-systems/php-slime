@@ -47,22 +47,24 @@ describe('EventReplayer', function () {
 
     StoredEvent::persistEvents($events, [
       'state_key' => 'account:1',
-      'next_position' => 1,
+      'position' => 1,
     ]);
 
     $replayed = [];
     $replayer = new EventReplayer();
-    $count = $replayer->replayAggregate('account:1', function ($event, $metadata) use (&$replayed) {
+    $count = $replayer->replayAggregate('account:1', function ($event, $context) use (&$replayed) {
       $replayed[] = [
         'class' => $event::class,
         'data' => $event->data,
-        'position' => $metadata['position'],
+        'position' => $context['position'],
+        'is_replay' => $context['is_replay'] ?? false,
       ];
     }, chunkSize: 2); // Small chunk to test multi-chunk pagination
 
     expect($count)->toBe(3)
       ->and($replayed)->toHaveCount(3)
       ->and($replayed[0]['position'])->toBe(1)
+      ->and($replayed[0]['is_replay'])->toBeTrue()
       ->and($replayed[0]['class'])->toBe(ReplayTestAccountCreated::class)
       ->and($replayed[0]['data']['name'])->toBe('Alice')
       ->and($replayed[1]['position'])->toBe(2)
@@ -81,7 +83,7 @@ describe('EventReplayer', function () {
 
     StoredEvent::persistEvents($events, [
       'state_key' => 'account:2',
-      'next_position' => 1,
+      'position' => 1,
     ]);
 
     $positions = [];
@@ -100,21 +102,21 @@ describe('EventReplayer', function () {
       new ReplayTestAccountCreated(['id' => 10, 'name' => 'Ten'], ['occurred_at' => $now->copy()->subMinutes(10)]),
     ], [
       'state_key' => 'account:10',
-      'next_position' => 1,
+      'position' => 1,
     ]);
 
     StoredEvent::persistEvents([
       new ReplayTestAccountCreated(['id' => 20, 'name' => 'Twenty'], ['occurred_at' => $now->copy()->subMinutes(5)]),
     ], [
       'state_key' => 'account:20',
-      'next_position' => 1,
+      'position' => 1,
     ]);
 
     StoredEvent::persistEvents([
       new ReplayTestAccountCreated(['id' => 30, 'name' => 'Thirty'], ['occurred_at' => $now->copy()->subMinutes(1)]),
     ], [
       'state_key' => 'account:30',
-      'next_position' => 1,
+      'position' => 1,
     ]);
 
     $names = [];

@@ -88,13 +88,13 @@ class StoredEvent extends Model {
    * Persists domain events into the stored_events table.
    *
    * Rejects any event implementing TransitoryEvent.
-   * Requires 'state_key' and 'next_position' in the metadata array.
+   * Requires 'state_key' and 'position' in the context array.
    *
    * @param mixed $events Single event, array of events, or collection
-   * @param array<string, mixed> $metadata Dispatch metadata from Interactor
+   * @param array<string, mixed> $context Dispatch context from Interactor
    * @return int Number of events persisted
    */
-  public static function persistEvents(mixed $events, array $metadata = []): int {
+  public static function persistEvents(mixed $events, array $context = []): int {
     $eventList = is_iterable($events) ? (is_array($events) ? $events : iterator_to_array($events)) : [$events];
 
     // Filter out transitory events
@@ -109,19 +109,19 @@ class StoredEvent extends Model {
       return 0;
     }
 
-    $stateKey = $metadata['state_key'] ?? null;
-    $nextPosition = $metadata['next_position'] ?? null;
+    $stateKey = $context['state_key'] ?? null;
+    $startPosition = $context['position'] ?? $context['next_position'] ?? null;
 
-    if ($stateKey === null || $nextPosition === null) {
+    if ($stateKey === null || $startPosition === null) {
       throw new InvalidArgumentException(
-        'Event persistence requires "state_key" and "next_position" in metadata.'
+        'Event persistence requires "state_key" and "position" in context.'
       );
     }
 
     $resolvedKey = self::resolveStateKey($stateKey);
     $typeId = $resolvedKey['type_id'];
     $stateId = $resolvedKey['state_id'];
-    $startPosition = (int)$nextPosition;
+    $startPosition = (int)$startPosition;
 
     $records = [];
     foreach ($persistableEvents as $offset => $event) {
@@ -133,7 +133,7 @@ class StoredEvent extends Model {
         ? $event->getMetadata()
         : ($event->metadata ?? null);
 
-      $occurredAt = self::resolveOccurredAt($eventMetadata, $metadata);
+      $occurredAt = self::resolveOccurredAt($eventMetadata, $context);
 
       $records[] = [
         'type_id' => $typeId,
@@ -189,15 +189,15 @@ class StoredEvent extends Model {
   }
 
   /**
-   * Resolves timestamp from event metadata, dispatch metadata, or current time.
+   * Resolves timestamp from event metadata, dispatch context, or current time.
    */
-  private static function resolveOccurredAt(mixed $eventMetadata, array $dispatchMetadata): string {
+  private static function resolveOccurredAt(mixed $eventMetadata, array $dispatchContext): string {
     $time = null;
 
     if (is_array($eventMetadata) && isset($eventMetadata['occurred_at'])) {
       $time = $eventMetadata['occurred_at'];
-    } elseif (isset($dispatchMetadata['occurred_at'])) {
-      $time = $dispatchMetadata['occurred_at'];
+    } elseif (isset($dispatchContext['occurred_at'])) {
+      $time = $dispatchContext['occurred_at'];
     }
 
     if ($time instanceof DateTimeInterface) {

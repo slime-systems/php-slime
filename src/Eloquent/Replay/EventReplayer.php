@@ -64,15 +64,16 @@ class EventReplayer {
       /** @var StoredEvent $storedEvent */
       foreach ($chunk as $storedEvent) {
         $event = $storedEvent->toEvent();
-        $metadata = [
+        $context = [
           'state_key' => $stateKey,
           'type_id' => $storedEvent->type_id,
           'state_id' => $storedEvent->state_id,
           'position' => $storedEvent->position,
           'occurred_at' => $storedEvent->occurred_at,
+          'is_replay' => true,
         ];
 
-        $handler($event, $metadata);
+        $handler($event, $context);
         $count++;
       }
     });
@@ -120,7 +121,7 @@ class EventReplayer {
       /** @var StoredEvent $storedEvent */
       foreach ($chunk as $storedEvent) {
         $event = $storedEvent->toEvent();
-        $metadata = [
+        $context = [
           'state_key' => [
             'type_id' => $storedEvent->type_id,
             'state_id' => $storedEvent->state_id,
@@ -129,9 +130,10 @@ class EventReplayer {
           'state_id' => $storedEvent->state_id,
           'position' => $storedEvent->position,
           'occurred_at' => $storedEvent->occurred_at,
+          'is_replay' => true,
         ];
 
-        $handler($event, $metadata);
+        $handler($event, $context);
         $count++;
       }
     });
