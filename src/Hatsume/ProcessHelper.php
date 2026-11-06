@@ -3,8 +3,6 @@
 namespace SlimeSystems\Hatsume;
 
 use Closure;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
 
 trait ProcessHelper {
   /** @var array<string, Closure> */
@@ -37,20 +35,30 @@ trait ProcessHelper {
     $this->eventHandlers[$eventClass] = $handler;
   }
 
-  private function apply(mixed ...$events): array {
-    $handlers = $this->eventHandlers;
-    return new Collection($events)
-      ->flatMap(Arr::wrap(...))
-      ->filter()
-      ->each(function (object $event) use ($handlers) {
-        $handlers[$event::class]?->__invoke($event);
-        $this->pendingEvents[] = $event;
-      })
-      ->all();
+  protected function apply(mixed ...$events): array {
+    $applied = [];
+    $queue = $events;
+
+    while (!empty($queue)) {
+      $item = array_shift($queue);
+      if ($item === null) {
+        continue;
+      }
+      if (is_array($item)) {
+        array_unshift($queue, ...$item);
+        continue;
+      }
+      if (is_object($item)) {
+        ($this->eventHandlers[$item::class] ?? null)?->__invoke($item);
+        $this->pendingEvents[] = $item;
+        $applied[] = $item;
+      }
+    }
+
+    return $applied;
   }
 
   protected function mergeState(array $default, ?array $recorded): array {
-    $recordedState = !empty($recorded) ? $recorded : [];
-    return array_merge($default, $recordedState);
+    return array_merge($default, $recorded ?? []);
   }
 }

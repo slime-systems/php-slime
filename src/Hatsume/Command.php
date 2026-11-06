@@ -78,11 +78,11 @@ trait Command {
   // --- ArrayAccess Implementation ---
 
   public function offsetExists(mixed $offset): bool {
-    return array_key_exists($offset, $this->validated());
+    return array_key_exists($offset, $this->validatedAttributes());
   }
 
   public function offsetGet(mixed $offset): mixed {
-    return $this->validated()[$offset] ?? null;
+    return $this->validatedAttributes()[$offset] ?? null;
   }
 
   public function offsetSet(mixed $_offset, mixed $_value): void {
