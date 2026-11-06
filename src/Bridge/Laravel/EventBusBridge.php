@@ -14,9 +14,9 @@ class EventBusBridge {
    * Dispatches domain events to Laravel's native event dispatcher.
    *
    * @param mixed $events Single event, array of events, or iterable
-   * @param array<string, mixed> $metadata Dispatch metadata
+   * @param array<string, mixed> $context Dispatch context
    */
-  public function __invoke(mixed $events, array $metadata = []): void {
+  public function __invoke(mixed $events, array $context = []): void {
     $eventList = is_iterable($events)
       ? (is_array($events) ? $events : iterator_to_array($events))
       : [$events];
@@ -26,15 +26,5 @@ class EventBusBridge {
         $this->dispatcher->dispatch($event);
       }
     }
-  }
-
-  /**
-   * Alias for __invoke to allow explicit call invocation.
-   *
-   * @param mixed $events
-   * @param array<string, mixed> $metadata
-   */
-  public function call(mixed $events, array $metadata = []): void {
-    $this($events, $metadata);
   }
 }

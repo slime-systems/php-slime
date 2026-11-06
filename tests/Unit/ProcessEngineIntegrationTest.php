@@ -103,7 +103,7 @@ class AccountProcess {
     ], $state);
   }
 
-  public function call(object $command): void {
+  public function __invoke(object $command): void {
     match ($command::class) {
       CreateAccountCommand::class => $this->handleCreate($command),
       RenameAccountCommand::class => $this->handleRename($command),
@@ -216,7 +216,7 @@ describe('Process Engine Integration (Hatsume Core)', function () {
       email: 'alice@example.com'
     );
 
-    $process->call($command);
+    $process($command);
 
     // Verify Aggregate state updated
     expect($process->state()['created'])->toBeTrue()
@@ -226,7 +226,7 @@ describe('Process Engine Integration (Hatsume Core)', function () {
 
     // Dispatch pending events through bus
     $metadata = ['timestamp' => 1700000000, 'account_id' => 42];
-    $bus->call($process->pendingEvents(), $metadata);
+    $bus($process->pendingEvents(), $metadata);
 
     // Verify Projection received domain event
     expect($projection->accounts)->toHaveKey(42)
@@ -242,13 +242,13 @@ describe('Process Engine Integration (Hatsume Core)', function () {
     $rehydratedProcess = new AccountProcess($process->state());
 
     $renameCommand = new RenameAccountCommand(displayName: 'Alice Wonderland');
-    $rehydratedProcess->call($renameCommand);
+    $rehydratedProcess($renameCommand);
 
     expect($rehydratedProcess->state()['displayName'])->toBe('Alice Wonderland')
       ->and($rehydratedProcess->pendingEvents())->toHaveCount(1);
 
     // Dispatch rename event
-    $bus->call($rehydratedProcess->pendingEvents(), ['account_id' => 42]);
+    $bus($rehydratedProcess->pendingEvents(), ['account_id' => 42]);
 
     // Projection updated
     expect($projection->accounts[42]['displayName'])->toBe('Alice Wonderland');
@@ -259,7 +259,7 @@ describe('Process Engine Integration (Hatsume Core)', function () {
     $process = new AccountProcess();
     $invalidCommand = new CreateAccountCommand(userId: '', email: 'not-an-email');
 
-    expect(fn() => $process->call($invalidCommand))
+    expect(fn() => $process($invalidCommand))
       ->toThrow(ValidationException::class);
   });
 
@@ -267,7 +267,7 @@ describe('Process Engine Integration (Hatsume Core)', function () {
     $process = new AccountProcess();
     $unregistered = new UnregisteredCommand();
 
-    expect(fn() => $process->call($unregistered))
+    expect(fn() => $process($unregistered))
       ->toThrow(UnknownCommand::class);
   });
 
@@ -275,7 +275,7 @@ describe('Process Engine Integration (Hatsume Core)', function () {
     $process = new AccountProcess(['created' => true]);
     $command = new CreateAccountCommand(userId: 'usr_xyz', email: 'bob@example.com');
 
-    expect(fn() => $process->call($command))
+    expect(fn() => $process($command))
       ->toThrow(AccountAlreadyExists::class);
   });
 });

@@ -49,22 +49,12 @@ class ApplicationEventHandler {
   }
 
   /**
-   * Dispatches events and metadata across projector, event store, and event bus.
+   * Dispatches events and context across projector, event store, and event bus.
    *
    * @param mixed $events
-   * @param array<string, mixed> $metadata
+   * @param array<string, mixed> $context
    */
-  public function __invoke(mixed $events, array $metadata = []): void {
-    $this->dispatcher->call($events, $metadata);
-  }
-
-  /**
-   * Explicit call invocation alias.
-   *
-   * @param mixed $events
-   * @param array<string, mixed> $metadata
-   */
-  public function call(mixed $events, array $metadata = []): void {
-    $this($events, $metadata);
+  public function __invoke(mixed $events, array $context = []): void {
+    ($this->dispatcher)($events, $context);
   }
 }

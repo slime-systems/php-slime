@@ -15,22 +15,12 @@ readonly class EventRouter {
    * Routes an event to its registered class handler.
    *
    * @param object $event
-   * @param array<string, mixed> $metadata
+   * @param array<string, mixed> $context
    */
-  public function __invoke(object $event, array $metadata = []): void {
+  public function __invoke(object $event, array $context = []): void {
     $handler = $this->handlersMap[$event::class] ?? null;
     if ($handler !== null) {
-      $handler($event, $metadata);
+      $handler($event, $context);
     }
-  }
-
-  /**
-   * Alias for __invoke to allow explicit method calling.
-   *
-   * @param object $event
-   * @param array<string, mixed> $metadata
-   */
-  public function call(object $event, array $metadata = []): void {
-    $this($event, $metadata);
   }
 }

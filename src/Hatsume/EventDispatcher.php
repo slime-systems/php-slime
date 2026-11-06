@@ -14,24 +14,14 @@ readonly class EventDispatcher {
   }
 
   /**
-   * Dispatches events and metadata to all registered handlers.
+   * Dispatches events and context to all registered handlers.
    *
    * @param mixed $events
-   * @param array<string, mixed> $metadata
+   * @param array<string, mixed> $context
    */
-  public function __invoke(mixed $events, array $metadata = []): void {
+  public function __invoke(mixed $events, array $context = []): void {
     foreach ($this->handlers as $handler) {
-      $handler($events, $metadata);
+      $handler($events, $context);
     }
-  }
-
-  /**
-   * Alias for __invoke to allow explicit method calling.
-   *
-   * @param mixed $events
-   * @param array<string, mixed> $metadata
-   */
-  public function call(mixed $events, array $metadata = []): void {
-    $this($events, $metadata);
   }
 }
