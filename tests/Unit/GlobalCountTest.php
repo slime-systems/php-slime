@@ -33,14 +33,6 @@ describe('GlobalCount Eloquent Model & Atomic Sequence Generator', function () {
       ->and($record->next_value)->toBe(4);
   });
 
-  test('snake_case alias next_value works identically for Ruby parity', function () {
-    $val1 = GlobalCount::next_value();
-    $val2 = GlobalCount::next_value();
-
-    expect($val1)->toBe(1)
-      ->and($val2)->toBe(2);
-  });
-
   test('supports isolated named sequences', function () {
     $account1 = GlobalCount::nextValue('account');
     $account2 = GlobalCount::nextValue('account');

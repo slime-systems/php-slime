@@ -84,17 +84,6 @@ class GlobalCount extends Model {
   }
 
   /**
-   * Snake_case alias for nextValue() for direct RubySlime API compatibility.
-   *
-   * @param string $key
-   * @param int|null $initialValue
-   * @return int
-   */
-  public static function next_value(string $key = self::DEFAULT_KEY, ?int $initialValue = null): int {
-    return static::nextValue($key, $initialValue);
-  }
-
-  /**
    * Atomically obtain the next sequence number and advance the counter.
    *
    * @param string $key Sequence identifier (defaults to 'global-count')
