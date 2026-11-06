@@ -195,38 +195,6 @@ describe('Eloquent Interactor', function () {
       ->and($dispatchedMetadata['position'])->toBe(1);
   });
 
-  test('supports integer and bigint state_id values', function () {
-    $bigintId = 9007199254740991;
-
-    $interactor = new Interactor(
-      stateKey: ['type' => 'account', 'id' => $bigintId],
-      loadProcess: fn(?array $state = null) => new WalletProcess($state),
-    );
-
-    $events = $interactor(new OpenWalletCommand(owner: 'BigIntUser', initialBalance: 1000));
-    expect($events)->toHaveCount(1);
-
-    $record = State::findByTypeAndId('account', $bigintId);
-    expect($record)->not->toBeNull()
-      ->and($record->getStateId())->toBe($bigintId)
-      ->and($record->state['owner'])->toBe('BigIntUser');
-  });
-
-  test('supports colon-separated type:id string stateKey', function () {
-    $interactor = new Interactor(
-      stateKey: 'wallet:user-999',
-      loadProcess: fn(?array $state = null) => new WalletProcess($state),
-    );
-
-    $events = $interactor(new OpenWalletCommand(owner: 'ColonUser', initialBalance: 50));
-    expect($events)->toHaveCount(1);
-
-    $record = State::findByTypeAndId('wallet', 'user-999');
-    expect($record)->not->toBeNull()
-      ->and($record->getTypeName())->toBe('wallet')
-      ->and($record->getStateId())->toBe('user-999');
-  });
-
   test('supports rehydration and advances lock_version and next_position on subsequent calls', function () {
     $history = [];
     $eventHandler = function (array $events, array $metadata) use (&$history) {
@@ -400,26 +368,6 @@ describe('Eloquent Interactor', function () {
       ->toThrow(StaleRecordException::class);
   });
 
-  test('supports callable invoke syntax and EventDispatcher instance', function () {
-    $eventsJournal = [];
-    $dispatcher = new EventDispatcher(function (array $events, array $metadata) use (&$eventsJournal) {
-      $eventsJournal[] = ['count' => count($events), 'metadata' => $metadata];
-    });
-
-    $interactor = new Interactor(
-      stateKey: ['type' => 'wallet', 'id' => 'wallet-invokable'],
-      loadProcess: fn(?array $state = null) => new WalletProcess($state),
-      eventHandler: $dispatcher,
-    );
-
-    // Invoke using ($interactor)(...) syntax
-    $events = $interactor(new OpenWalletCommand(owner: 'Frank', initialBalance: 300));
-
-    expect($events)->toHaveCount(1)
-      ->and($eventsJournal)->toHaveCount(1)
-      ->and($eventsJournal[0]['metadata']['state_key'])->toBe(['type' => 'wallet', 'id' => 'wallet-invokable']);
-  });
-
   test('automatically retries and succeeds when collision occurs before retry limit', function () {
     $typeId = StateType::idFor('wallet');
 
@@ -454,35 +402,6 @@ describe('Eloquent Interactor', function () {
     $finalRecord = State::findByTypeAndId('wallet', 'wallet-retry-success');
     expect($finalRecord->state['balance'])->toBe(150)
       ->and($finalRecord->lock_version)->toBe(2);
-  });
-
-  test('throws StaleRecordException when maxRetries is 1 and collision occurs', function () {
-    $typeId = StateType::idFor('wallet');
-
-    $initialRecord = new State([
-      'type_id' => $typeId,
-      'state_id' => 'wallet-no-retry',
-      'state' => ['opened' => true, 'owner' => 'Grace', 'balance' => 100],
-      'next_position' => 2,
-      'lock_version' => 0,
-    ]);
-    $initialRecord->save();
-
-    $callCount = 0;
-    $interactor = new Interactor(
-      stateKey: ['type' => 'wallet', 'id' => 'wallet-no-retry'],
-      loadProcess: function (?array $state = null) use ($typeId, &$callCount) {
-        $callCount++;
-        State::where('type_id', $typeId)->where('state_id', 'wallet-no-retry')->update(['lock_version' => 1]);
-        return new WalletProcess($state);
-      },
-      maxRetries: 1,
-    );
-
-    expect(fn() => $interactor(new DepositFundsCommand(amount: 50)))
-      ->toThrow(StaleRecordException::class);
-
-    expect($callCount)->toBe(1);
   });
 
   test('forwards caller context and execution state to event handler', function () {

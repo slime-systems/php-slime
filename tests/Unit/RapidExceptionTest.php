@@ -104,5 +104,16 @@ describe('RapidException', function () {
       ->and($e->identifier)->toBe(StaleRecordException::CONCURRENT_WRITE)
       ->and($e->metadata['lock_version'])->toBe(5);
   });
+
+  it('supports TokenException wrapping and constants', function () {
+    $e = new \SlimeSystems\Tokens\TokenException(\SlimeSystems\Tokens\TokenException::MISMATCHED_HASH, 'Hash error', expected: 'abc');
+    expect($e)->toBeInstanceOf(RapidException::class)
+      ->and($e->identifier)->toBe(\SlimeSystems\Tokens\TokenException::MISMATCHED_HASH)
+      ->and($e->metadata['expected'])->toBe('abc');
+
+    $defaultEx = new \SlimeSystems\Tokens\TokenException('Malformed payload');
+    expect($defaultEx->identifier)->toBe(\SlimeSystems\Tokens\TokenException::INVALID)
+      ->and($defaultEx->getMessage())->toBe('Malformed payload');
+  });
 });
 
