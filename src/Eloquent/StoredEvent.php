@@ -96,21 +96,14 @@ class StoredEvent extends Model {
    */
   public static function persistEvents(mixed $events, array $context = []): int {
     $eventList = is_iterable($events) ? (is_array($events) ? $events : iterator_to_array($events)) : [$events];
-
-    // Filter out transitory events
-    $persistableEvents = [];
-    foreach ($eventList as $event) {
-      if (!$event instanceof TransitoryEvent) {
-        $persistableEvents[] = $event;
-      }
-    }
+    $persistableEvents = array_values(array_filter($eventList, fn($e) => !$e instanceof TransitoryEvent));
 
     if (empty($persistableEvents)) {
       return 0;
     }
 
-    $stateKey = $context['_state_key'] ?? $context['state_key'] ?? null;
-    $startPosition = $context['_position'] ?? $context['position'] ?? $context['next_position'] ?? null;
+    $stateKey = $context['_state_key'] ?? null;
+    $startPosition = $context['_position'] ?? null;
 
     if ($stateKey === null || $startPosition === null) {
       throw new InvalidArgumentException(
@@ -125,26 +118,14 @@ class StoredEvent extends Model {
 
     $records = [];
     foreach ($persistableEvents as $offset => $event) {
-      $eventData = method_exists($event, 'getData')
-        ? $event->getData()
-        : ($event->data ?? []);
-
-      $eventMetadata = method_exists($event, 'getMetadata')
-        ? $event->getMetadata()
-        : ($event->metadata ?? null);
-
-      $occurredAt = (isset($event->occurredAt) && $event->occurredAt instanceof Carbon)
-        ? $event->occurredAt->format('Y-m-d H:i:s.u')
-        : Carbon::now()->format('Y-m-d H:i:s.u');
-
       $records[] = [
         'type_id' => $typeId,
         'state_id' => $stateId,
         'position' => $startPosition + $offset,
         'event_type_id' => EventType::idFor($event::class),
-        'data' => MessagePackSerializer::pack($eventData),
-        'metadata' => $eventMetadata !== null ? MessagePackSerializer::pack($eventMetadata) : null,
-        'occurred_at' => $occurredAt,
+        'data' => MessagePackSerializer::pack($event->data ?? []),
+        'metadata' => isset($event->metadata) ? MessagePackSerializer::pack($event->metadata) : null,
+        'occurred_at' => $event->occurredAt?->format('Y-m-d H:i:s.u') ?? Carbon::now()->format('Y-m-d H:i:s.u'),
       ];
     }
 
@@ -161,11 +142,7 @@ class StoredEvent extends Model {
    */
   public static function resolveStateKey(mixed $key): array {
     if (is_array($key)) {
-      $typeId = $key['type_id'] ?? null;
-      if ($typeId === null && isset($key['type'])) {
-        $typeId = StateType::idFor((string)$key['type']);
-      }
-
+      $typeId = $key['type_id'] ?? (isset($key['type']) ? StateType::idFor((string)$key['type']) : null);
       $stateId = $key['state_id'] ?? $key['id'] ?? null;
 
       if ($typeId !== null && $stateId !== null) {
@@ -191,26 +168,6 @@ class StoredEvent extends Model {
   }
 
   /**
-   * Get the primary key value for a save query.
-   *
-   * @return array{type_id: int|null, state_id: string|int|null, position: int|null}
-   */
-  public function getKey() {
-    return [
-      'type_id' => $this->getAttribute('type_id'),
-      'state_id' => $this->getAttribute('state_id'),
-      'position' => $this->getAttribute('position'),
-    ];
-  }
-
-  /**
-   * Convenience getter for event_type_id.
-   */
-  public function getEventTypeId(): int {
-    return (int)$this->getAttribute('event_type_id');
-  }
-
-  /**
    * Convenience getter for string state type name resolved from StateType.
    */
   public function getTypeName(): ?string {
@@ -228,12 +185,9 @@ class StoredEvent extends Model {
       throw new RuntimeException(sprintf('Event class "%s" does not exist for replay.', $class ?? 'null'));
     }
 
-    $data = $this->getAttribute('data') ?? [];
-    $metadata = $this->getAttribute('metadata');
-
     return new $class(
-      data: $data,
-      metadata: $metadata,
+      data: $this->data ?? [],
+      metadata: $this->metadata,
       occurredAt: $this->occurred_at,
     );
   }
@@ -270,18 +224,5 @@ class StoredEvent extends Model {
    */
   public function scopeFromPosition(Builder $query, int $position): Builder {
     return $query->where('position', '>=', $position);
-  }
-
-  /**
-   * Set the keys for a save update query (enabling composite primary key support).
-   *
-   * @param Builder<static> $query
-   * @return Builder<static>
-   */
-  protected function setKeysForSaveQuery($query) {
-    return $query
-      ->where('type_id', $this->getAttribute('type_id'))
-      ->where('state_id', $this->getAttribute('state_id'))
-      ->where('position', $this->getAttribute('position'));
   }
 }

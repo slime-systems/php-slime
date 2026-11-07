@@ -50,8 +50,8 @@ describe('StoredEvent Eloquent Model', function () {
     $event2 = new StoredTestDomainEvent(['amount' => 200], ['source' => 'api']);
 
     $metadata = [
-      'state_key' => ['type' => 'order', 'id' => 'ord-123'],
-      'position' => 1,
+      '_state_key' => ['type' => 'order', 'id' => 'ord-123'],
+      '_position' => 1,
     ];
 
     $savedCount = StoredEvent::persistEvents([$event1, $event2], $metadata);
@@ -62,12 +62,12 @@ describe('StoredEvent Eloquent Model', function () {
 
     expect($records)->toHaveCount(2)
       ->and($records[0]->position)->toBe(1)
-      ->and($records[0]->getEventTypeId())->toBe(1)
+      ->and($records[0]->event_type_id)->toBe(1)
       ->and($records[0]->getEventClass())->toBe(StoredTestDomainEvent::class)
       ->and($records[0]->data)->toBe(['amount' => 100])
       ->and($records[0]->metadata)->toBe(['source' => 'web'])
       ->and($records[1]->position)->toBe(2)
-      ->and($records[1]->getEventTypeId())->toBe(1)
+      ->and($records[1]->event_type_id)->toBe(1)
       ->and($records[1]->getEventClass())->toBe(StoredTestDomainEvent::class)
       ->and($records[1]->data)->toBe(['amount' => 200]);
   });
@@ -77,8 +77,8 @@ describe('StoredEvent Eloquent Model', function () {
     $transitoryEvent = new StoredTestTransitoryEvent(['name' => 'Ephemeral']);
 
     $metadata = [
-      'state_key' => 'account:456',
-      'position' => 5,
+      '_state_key' => 'account:456',
+      '_position' => 5,
     ];
 
     $count = StoredEvent::persistEvents([$persistentEvent, $transitoryEvent], $metadata);
@@ -101,12 +101,12 @@ describe('StoredEvent Eloquent Model', function () {
       ->and(StoredEvent::count())->toBe(0);
   });
 
-  test('throws InvalidArgumentException when context lacks state_key or position for persistent events', function () {
+  test('throws InvalidArgumentException when context lacks _state_key or _position for persistent events', function () {
     $event = new StoredTestDomainEvent(['valid' => true]);
 
-    expect(fn() => StoredEvent::persistEvents([$event], ['state_key' => 'test']))
+    expect(fn() => StoredEvent::persistEvents([$event], ['_state_key' => 'test']))
       ->toThrow(InvalidArgumentException::class)
-      ->and(fn() => StoredEvent::persistEvents([$event], ['position' => 1]))
+      ->and(fn() => StoredEvent::persistEvents([$event], ['_position' => 1]))
       ->toThrow(InvalidArgumentException::class);
   });
 
@@ -115,8 +115,8 @@ describe('StoredEvent Eloquent Model', function () {
     $original = new StoredTestDomainEvent(['key' => 'val'], ['source' => 'test'], $now);
 
     StoredEvent::persistEvents([$original], [
-      'state_key' => 'user:999',
-      'position' => 1,
+      '_state_key' => 'user:999',
+      '_position' => 1,
     ]);
 
     $stored = StoredEvent::forAggregate('user:999')->first();
@@ -150,8 +150,8 @@ describe('StoredEvent Eloquent Model', function () {
     ];
 
     StoredEvent::persistEvents($events, [
-      'state_key' => 'stream:1',
-      'position' => 10,
+      '_state_key' => 'stream:1',
+      '_position' => 10,
     ]);
 
     $filtered = StoredEvent::forAggregate('stream:1')

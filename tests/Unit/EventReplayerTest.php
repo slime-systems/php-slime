@@ -46,8 +46,8 @@ describe('EventReplayer', function () {
     ];
 
     StoredEvent::persistEvents($events, [
-      'state_key' => 'account:1',
-      'position' => 1,
+      '_state_key' => 'account:1',
+      '_position' => 1,
     ]);
 
     $replayed = [];
@@ -82,8 +82,8 @@ describe('EventReplayer', function () {
     ];
 
     StoredEvent::persistEvents($events, [
-      'state_key' => 'account:2',
-      'position' => 1,
+      '_state_key' => 'account:2',
+      '_position' => 1,
     ]);
 
     $positions = [];
@@ -101,22 +101,22 @@ describe('EventReplayer', function () {
     StoredEvent::persistEvents([
       new ReplayTestAccountCreated(['id' => 10, 'name' => 'Ten'], ['occurred_at' => $now->copy()->subMinutes(10)]),
     ], [
-      'state_key' => 'account:10',
-      'position' => 1,
+      '_state_key' => 'account:10',
+      '_position' => 1,
     ]);
 
     StoredEvent::persistEvents([
       new ReplayTestAccountCreated(['id' => 20, 'name' => 'Twenty'], ['occurred_at' => $now->copy()->subMinutes(5)]),
     ], [
-      'state_key' => 'account:20',
-      'position' => 1,
+      '_state_key' => 'account:20',
+      '_position' => 1,
     ]);
 
     StoredEvent::persistEvents([
       new ReplayTestAccountCreated(['id' => 30, 'name' => 'Thirty'], ['occurred_at' => $now->copy()->subMinutes(1)]),
     ], [
-      'state_key' => 'account:30',
-      'position' => 1,
+      '_state_key' => 'account:30',
+      '_position' => 1,
     ]);
 
     $names = [];
