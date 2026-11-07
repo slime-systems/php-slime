@@ -56,8 +56,8 @@ describe('EventReplayer', function () {
       $replayed[] = [
         'class' => $event::class,
         'data' => $event->data,
-        'position' => $context['position'],
-        'is_replay' => $context['is_replay'] ?? false,
+        'position' => $context['_position'],
+        'is_replay' => $context['_is_replay'] ?? false,
       ];
     }, chunkSize: 2); // Small chunk to test multi-chunk pagination
 
@@ -87,8 +87,8 @@ describe('EventReplayer', function () {
     ]);
 
     $positions = [];
-    $count = EventReplayer::forAggregate('account:2', function ($event, $metadata) use (&$positions) {
-      $positions[] = $metadata['position'];
+    $count = EventReplayer::forAggregate('account:2', function ($event, $context) use (&$positions) {
+      $positions[] = $context['_position'];
     }, fromPosition: 2, toPosition: 3);
 
     expect($count)->toBe(2)

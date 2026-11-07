@@ -65,12 +65,12 @@ class EventReplayer {
       foreach ($chunk as $storedEvent) {
         $event = $storedEvent->toEvent();
         $context = [
-          'state_key' => $stateKey,
-          'type_id' => $storedEvent->type_id,
-          'state_id' => $storedEvent->state_id,
-          'position' => $storedEvent->position,
-          'occurred_at' => $storedEvent->occurred_at,
-          'is_replay' => true,
+          '_state_key' => $stateKey,
+          '_type_id' => $storedEvent->type_id,
+          '_state_id' => $storedEvent->state_id,
+          '_position' => $storedEvent->position,
+          '_occurred_at' => $storedEvent->occurred_at,
+          '_is_replay' => true,
         ];
 
         $handler($event, $context);
@@ -122,15 +122,15 @@ class EventReplayer {
       foreach ($chunk as $storedEvent) {
         $event = $storedEvent->toEvent();
         $context = [
-          'state_key' => [
+          '_state_key' => [
             'type_id' => $storedEvent->type_id,
             'state_id' => $storedEvent->state_id,
           ],
-          'type_id' => $storedEvent->type_id,
-          'state_id' => $storedEvent->state_id,
-          'position' => $storedEvent->position,
-          'occurred_at' => $storedEvent->occurred_at,
-          'is_replay' => true,
+          '_type_id' => $storedEvent->type_id,
+          '_state_id' => $storedEvent->state_id,
+          '_position' => $storedEvent->position,
+          '_occurred_at' => $storedEvent->occurred_at,
+          '_is_replay' => true,
         ];
 
         $handler($event, $context);

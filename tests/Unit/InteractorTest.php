@@ -191,8 +191,8 @@ describe('Eloquent Interactor', function () {
 
     // Verifies event dispatching and context
     expect($dispatchedEvents)->toHaveCount(1)
-      ->and($dispatchedMetadata['state_key'])->toBe(['type' => 'wallet', 'id' => 'wallet-001'])
-      ->and($dispatchedMetadata['position'])->toBe(1);
+      ->and($dispatchedMetadata['_state_key'])->toBe(['type' => 'wallet', 'id' => 'wallet-001'])
+      ->and($dispatchedMetadata['_position'])->toBe(1);
   });
 
   test('supports rehydration and advances lock_version and next_position on subsequent calls', function () {
@@ -227,8 +227,8 @@ describe('Eloquent Interactor', function () {
 
     // Check context history
     expect($history)->toHaveCount(2)
-      ->and($history[0]['metadata']['position'])->toBe(1)
-      ->and($history[1]['metadata']['position'])->toBe(2);
+      ->and($history[0]['metadata']['_position'])->toBe(1)
+      ->and($history[1]['metadata']['_position'])->toBe(2);
   });
 
   test('supports batching multiple commands in a single call', function () {
@@ -412,16 +412,17 @@ describe('Eloquent Interactor', function () {
       eventHandler: function ($events, array $context) use (&$dispatchedContext) {
         $dispatchedContext = $context;
       },
-    ))->withContext(['secret' => 'super-secret-key', 'actor_id' => 'usr-123']);
+    ))->withContext(['secret' => 'super-secret-key', 'actor_id' => 'usr-123', 'position' => 'Senior Developer']);
 
     $interactor(new OpenWalletCommand(owner: 'ContextUser', initialBalance: 100));
 
     expect($dispatchedContext)->toMatchArray([
       'secret' => 'super-secret-key',
       'actor_id' => 'usr-123',
-      'state_key' => 'wallet:user-ctx',
-      'position' => 1,
-      'is_replay' => false,
+      'position' => 'Senior Developer',
+      '_state_key' => 'wallet:user-ctx',
+      '_position' => 1,
+      '_is_replay' => false,
     ]);
   });
 });

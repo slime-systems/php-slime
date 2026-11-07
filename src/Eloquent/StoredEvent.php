@@ -88,7 +88,7 @@ class StoredEvent extends Model {
    * Persists domain events into the stored_events table.
    *
    * Rejects any event implementing TransitoryEvent.
-   * Requires 'state_key' and 'position' in the context array.
+   * Requires '_state_key' and '_position' in the context array.
    *
    * @param mixed $events Single event, array of events, or collection
    * @param array<string, mixed> $context Dispatch context from Interactor
@@ -109,12 +109,12 @@ class StoredEvent extends Model {
       return 0;
     }
 
-    $stateKey = $context['state_key'] ?? null;
-    $startPosition = $context['position'] ?? $context['next_position'] ?? null;
+    $stateKey = $context['_state_key'] ?? $context['state_key'] ?? null;
+    $startPosition = $context['_position'] ?? $context['position'] ?? $context['next_position'] ?? null;
 
     if ($stateKey === null || $startPosition === null) {
       throw new InvalidArgumentException(
-        'Event persistence requires "state_key" and "position" in context.'
+        'Event persistence requires "_state_key" and "_position" in context.'
       );
     }
 

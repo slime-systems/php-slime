@@ -174,9 +174,9 @@ class Interactor {
 
     if ($this->eventHandler !== null) {
       $context = array_merge($this->context, [
-        'state_key' => $savedStateKey,
-        'position' => $initialNextPosition,
-        'is_replay' => false,
+        '_state_key' => $savedStateKey,
+        '_position' => $initialNextPosition,
+        '_is_replay' => false,
       ]);
 
       $this->dispatchEvents($pendingEvents, $context);
