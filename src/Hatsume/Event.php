@@ -2,15 +2,23 @@
 
 namespace SlimeSystems\Hatsume;
 
+use DateTimeInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
 
 trait Event {
   public readonly array $data;
   public readonly mixed $metadata;
+  public readonly Carbon $occurredAt;
 
-  public function __construct(array $data = [], mixed $metadata = null) {
+  public function __construct(
+    array $data = [],
+    mixed $metadata = null,
+    ?DateTimeInterface $occurredAt = null,
+  ) {
     $this->data = $data;
     $this->metadata = $metadata;
+    $this->occurredAt = $occurredAt ? Carbon::instance($occurredAt) : Carbon::now();
   }
 
   /**
@@ -18,7 +26,11 @@ trait Event {
    *
    * @throws ValidationException
    */
-  public static function strict(array $data = [], mixed $metadata = null): static {
+  public static function strict(
+    array $data = [],
+    mixed $metadata = null,
+    ?DateTimeInterface $occurredAt = null,
+  ): static {
     $rules = static::rules();
 
     if (!empty($rules)) {
@@ -26,7 +38,7 @@ trait Event {
       if ($validator->fails()) throw new ValidationException($validator);
       $data = $validator->validated();
     }
-    return new static($data, $metadata);
+    return new static($data, $metadata, $occurredAt);
   }
 
   /**

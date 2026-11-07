@@ -111,7 +111,8 @@ describe('StoredEvent Eloquent Model', function () {
   });
 
   test('reconstitutes stored event into original domain event via toEvent', function () {
-    $original = new StoredTestDomainEvent(['key' => 'val'], ['occurred_at' => Carbon::now()]);
+    $now = Carbon::parse('2026-01-01 12:00:00');
+    $original = new StoredTestDomainEvent(['key' => 'val'], ['source' => 'test'], $now);
 
     StoredEvent::persistEvents([$original], [
       'state_key' => 'user:999',
@@ -124,7 +125,8 @@ describe('StoredEvent Eloquent Model', function () {
 
     expect($reconstituted)->toBeInstanceOf(StoredTestDomainEvent::class)
       ->and($reconstituted->data)->toBe(['key' => 'val'])
-      ->and($reconstituted->metadata)->toHaveKey('occurred_at');
+      ->and($reconstituted->metadata)->toBe(['source' => 'test'])
+      ->and($reconstituted->occurredAt->toIso8601String())->toBe($now->toIso8601String());
   });
 
   test('resolves state key across array, colon string, and scalar formats', function () {

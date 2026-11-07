@@ -27,18 +27,22 @@ describe('Event', function () {
     $event = new StandardEvent($data, $metadata);
 
     expect($event->data)->toBe($data)
-      ->and($event->metadata)->toBe($metadata);
+      ->and($event->metadata)->toBe($metadata)
+      ->and($event->occurredAt)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
   });
 
   test('creates valid event using strict factory constructor', function () {
     $data = ['user_id' => 42, 'email' => 'test@example.com'];
     $metadata = ['ip' => '127.0.0.1'];
+    $timestamp = new DateTimeImmutable('2026-05-01 10:00:00');
 
-    $event = ValidatedEvent::strict($data, $metadata);
+    $event = ValidatedEvent::strict($data, $metadata, $timestamp);
 
     expect($event)->toBeInstanceOf(ValidatedEvent::class)
       ->and($event->data)->toBe($data)
-      ->and($event->metadata)->toBe($metadata);
+      ->and($event->metadata)->toBe($metadata)
+      ->and($event->occurredAt)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+      ->and($event->occurredAt->toIso8601String())->toBe('2026-05-01T10:00:00+00:00');
   });
 
   test('throws ValidationException when strict validation fails', function () {

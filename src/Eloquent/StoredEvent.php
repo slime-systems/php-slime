@@ -133,7 +133,9 @@ class StoredEvent extends Model {
         ? $event->getMetadata()
         : ($event->metadata ?? null);
 
-      $occurredAt = self::resolveOccurredAt($eventMetadata, $context);
+      $occurredAt = (isset($event->occurredAt) && $event->occurredAt instanceof Carbon)
+        ? $event->occurredAt->format('Y-m-d H:i:s.u')
+        : Carbon::now()->format('Y-m-d H:i:s.u');
 
       $records[] = [
         'type_id' => $typeId,
@@ -189,29 +191,6 @@ class StoredEvent extends Model {
   }
 
   /**
-   * Resolves timestamp from event metadata, dispatch context, or current time.
-   */
-  private static function resolveOccurredAt(mixed $eventMetadata, array $dispatchContext): string {
-    $time = null;
-
-    if (is_array($eventMetadata) && isset($eventMetadata['occurred_at'])) {
-      $time = $eventMetadata['occurred_at'];
-    } elseif (isset($dispatchContext['occurred_at'])) {
-      $time = $dispatchContext['occurred_at'];
-    }
-
-    if ($time instanceof DateTimeInterface) {
-      return $time->format('Y-m-d H:i:s.u');
-    }
-
-    if (is_string($time)) {
-      return Carbon::parse($time)->format('Y-m-d H:i:s.u');
-    }
-
-    return Carbon::now()->format('Y-m-d H:i:s.u');
-  }
-
-  /**
    * Get the primary key value for a save query.
    *
    * @return array{type_id: int|null, state_id: string|int|null, position: int|null}
@@ -255,6 +234,7 @@ class StoredEvent extends Model {
     return new $class(
       data: $data,
       metadata: $metadata,
+      occurredAt: $this->occurred_at,
     );
   }
 
