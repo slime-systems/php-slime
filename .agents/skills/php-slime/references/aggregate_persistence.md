@@ -95,7 +95,7 @@ The `Interactor` orchestrates the complete write-path lifecycle:
 4. Detects and applies state changes.
 5. Performs atomic optimistic concurrency checks (`lock_version`).
 6. Saves updated state (compact MessagePack serialized).
-7. Dispatches newly generated events (`pendingEvents`) to `ApplicationEventHandler`.
+7. Dispatches newly generated events (`pendingEvents`) to `DomainEventDispatcher`.
 
 ### Basic Execution
 ```php
@@ -104,7 +104,7 @@ use SlimeSystems\Eloquent\Interactor;
 $interactor = new Interactor(
     stateKey: ['type' => 'subscription', 'id' => $subscriptionId],
     loadProcess: fn (?array $state) => new SubscriptionProcess($state),
-    eventHandler: $applicationEventHandler,
+    eventHandler: $domainEventDispatcher,
 );
 
 $events = $interactor->call($chargeCommand);
@@ -133,14 +133,14 @@ use App\Domain\Subscription\Commands\ChargeSubscriptionCommand;
 use App\Services\PaymentGateway;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use SlimeSystems\Eloquent\ApplicationEventHandler;
 use SlimeSystems\Eloquent\Interactor;
+use SlimeSystems\Hatsume\DomainEventDispatcher;
 
 class SubscriptionController extends Controller
 {
     public function __construct(
         private readonly PaymentGateway $paymentGateway,
-        private readonly ApplicationEventHandler $eventHandler,
+        private readonly DomainEventDispatcher $eventDispatcher,
     ) {}
 
     public function charge(Request $request, string $id): JsonResponse
@@ -208,9 +208,9 @@ class SubscriptionController extends Controller
 
 ---
 
-## 4. Event Bus & Event Store Wiring (`ApplicationEventHandler`)
+## 4. Event Bus & Event Store Wiring (`DomainEventDispatcher`)
 
-`ApplicationEventHandler` coordinates three targets when an aggregate produces events:
+`DomainEventDispatcher` coordinates three targets when an aggregate produces events:
 1. **Read Model Projector (Synchronous):** Updates query models in-memory immediately using `EventQueue` and `EventRouter`.
 2. **Persistent Event Store (Audit Log):** Appends events to `stored_events` via `StoredEvent::persistEvents(...)` (automatically skipping `TransitoryEvent`s).
 3. **Laravel Event Bus (Asynchronous):** Bridges domain events to Laravel's native event dispatcher via `EventBusBridge`, allowing queued listeners and notification jobs to react.
@@ -222,8 +222,8 @@ namespace App\Providers;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\ServiceProvider;
 use SlimeSystems\Bridge\Laravel\EventBusBridge;
-use SlimeSystems\Eloquent\ApplicationEventHandler;
 use SlimeSystems\Eloquent\StoredEvent;
+use SlimeSystems\Hatsume\DomainEventDispatcher;
 use SlimeSystems\Hatsume\EventQueue;
 use SlimeSystems\Hatsume\EventRouter;
 use App\Domain\Subscription\Events\SubscriptionCharged;
@@ -233,7 +233,7 @@ class DomainEventServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(ApplicationEventHandler::class, function ($app) {
+        $this->app->singleton(DomainEventDispatcher::class, function ($app) {
             // 1. In-memory Projection Router
             $projector = new EventQueue(new EventRouter([
                 SubscriptionCharged::class => $app->make(SubscriptionProjector::class),
@@ -245,10 +245,10 @@ class DomainEventServiceProvider extends ServiceProvider
             // 3. Laravel Event Bus Bridge
             $eventBus = new EventBusBridge($app->make(Dispatcher::class));
 
-            return ApplicationEventHandler::make(
-                projector: $projector,
-                eventStore: $eventStore,
-                eventBus: $eventBus,
+            return new DomainEventDispatcher(
+                $projector,
+                $eventStore,
+                $eventBus,
             );
         });
     }

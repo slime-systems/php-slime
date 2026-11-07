@@ -29,7 +29,7 @@ The framework separates the write model (business processes and state mutation) 
                            [State Record (MessagePack)]        [Pending Events]
                                        │                               │
                          (Optimistic lock check)                       ▼
-                                       │                   [ApplicationEventHandler]
+                                       │                   [DomainEventDispatcher]
                                        ▼                     ├── Read Model Projector (EventQueue)
                                   [Database]                 ├── Persistent Event Store (StoredEvent)
                                                              └── Laravel Event Bus (EventBusBridge)
@@ -112,7 +112,7 @@ use SlimeSystems\Eloquent\Interactor;
 $interactor = new Interactor(
     stateKey: ['type' => 'order', 'id' => $orderId],
     loadProcess: fn (?array $state) => new OrderProcess($state),
-    eventHandler: $applicationEventHandler,
+    eventHandler: $domainEventDispatcher,
 );
 
 $pendingEvents = $interactor->call(new PlaceOrderCommand(orderId: $orderId, amount: 2500));
@@ -123,5 +123,5 @@ $pendingEvents = $interactor->call(new PlaceOrderCommand(orderId: $orderId, amou
 ## Detailed Reference Guides
 
 * **[CQRS & Business Processes](./references/cqrs_and_processes.md)**: Command validation, domain events, ephemeral `TransitoryEvent`, `ProcessHelper` state machines, and event routers.
-* **[Aggregate Persistence & Controller Integration](./references/aggregate_persistence.md)**: Database migrations (`createBlueprint`), Eloquent `State` storage, optimistic locking, controller delegation with First-Class Callables, and `ApplicationEventHandler` wiring.
+* **[Aggregate Persistence & Controller Integration](./references/aggregate_persistence.md)**: Database migrations (`createBlueprint`), Eloquent `State` storage, optimistic locking, controller delegation with First-Class Callables, and `DomainEventDispatcher` wiring.
 * **[Token Infrastructure & Security](./references/token_infrastructure.md)**: PASETO v4 / JWT tokens with anti-tamper payload hashing (`api:hash`), Google Firebase ID token verification, and stateless `OpaqueToken` continuation cursors.
