@@ -17,7 +17,7 @@ class OrderCancelled {
 
 /**
  * Note: In full CQRS implementations, aggregate processes typically expose
- * a `call(object $command)` method with an `UnknownCommand` fallback (see
+ * a `__invoke(object $command)` method with an `UnknownCommand` fallback (see
  * ProcessEngineIntegrationTest). DummyProcess below uses direct helper methods
  * solely to test ProcessHelper's internal event-application and state-machine
  * mechanics in isolation.
