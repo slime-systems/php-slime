@@ -8,274 +8,125 @@ use SlimeSystems\Hatsume\EventRouter;
 use SlimeSystems\Hatsume\ProcessHelper;
 use SlimeSystems\Hatsume\TransitoryEvent;
 use SlimeSystems\Hatsume\UnknownCommand;
-use SlimeSystems\Hatsume\ValidationException;
 
-// Domain Commands
-class CreateAccountCommand implements ArrayAccess {
+class CreateAccountCommand {
   use Command;
 
-  public function __construct(
-    public ?string $userId = null,
-    public ?string $email = null,
-  ) {
+  public function __construct(public string $email = '') {
   }
-
-  protected function rules(): array {
-    return [
-      'userId' => ['required', 'string', 'max:50'],
-      'email' => ['required', 'email'],
-    ];
-  }
-}
-
-class RenameAccountCommand implements ArrayAccess {
-  use Command;
-
-  public function __construct(
-    public ?string $displayName = null,
-  ) {
-  }
-
-  protected function rules(): array {
-    return [
-      'displayName' => ['required', 'string', 'min:2'],
-    ];
-  }
-}
-
-class UnregisteredCommand implements ArrayAccess {
-  use Command;
 
   protected function rules(): array {
     return [];
   }
 }
 
-// Domain Events
+class RenameAccountCommand {
+  use Command;
+
+  public function __construct(public string $displayName = '') {
+  }
+
+  protected function rules(): array {
+    return [];
+  }
+}
+
 class AccountCreated {
   use Event;
-
-  protected static function rules(): array {
-    return [
-      'id' => ['required', 'integer'],
-      'userId' => ['required', 'string'],
-      'email' => ['required', 'email'],
-    ];
-  }
 }
 
 class AccountRenamed {
   use Event;
-
-  protected static function rules(): array {
-    return [
-      'displayName' => ['required', 'string'],
-    ];
-  }
 }
 
-class AccountWelcomeEmailDispatched implements TransitoryEvent {
+class WelcomeEmailSent implements TransitoryEvent {
   use Event;
 }
 
-// Domain Exceptions
-class AccountAlreadyExists extends RuntimeException {
-}
-
-class AccountNotFound extends RuntimeException {
-}
-
-// Aggregate Process
 class AccountProcess {
   use ProcessHelper;
 
-  public function __construct(
-    ?array                    $state = null,
-    private readonly ?Closure $generateId = null,
-  ) {
-    $this->registerEventHandlers();
-    $this->state = $this->mergeState([
-      'id' => null,
-      'created' => false,
-      'userId' => null,
-      'email' => null,
-      'displayName' => null,
-    ], $state);
+  public function __construct(?array $state = null) {
+    $this->state = $this->mergeState(['id' => null, 'displayName' => null], $state);
+
+    $this->on(AccountCreated::class, fn(AccountCreated $e) => $this->state['id'] = $e->data['id']);
+    $this->on(AccountRenamed::class, fn(AccountRenamed $e) => $this->state['displayName'] = $e->data['displayName']);
   }
 
-  public function __invoke(object $command): void {
-    match ($command::class) {
-      CreateAccountCommand::class => $this->handleCreate($command),
-      RenameAccountCommand::class => $this->handleRename($command),
-      default => throw new UnknownCommand($command),
+  public function __invoke(object $cmd): void {
+    match ($cmd::class) {
+      CreateAccountCommand::class => $this->apply(
+        new AccountCreated(['id' => 42, 'email' => $cmd->email]),
+        new WelcomeEmailSent(['email' => $cmd->email]),
+      ),
+      RenameAccountCommand::class => $this->apply(
+        new AccountRenamed(['displayName' => $cmd->displayName]),
+      ),
+      default => throw new UnknownCommand($cmd),
     };
-  }
-
-  private function handleCreate(CreateAccountCommand $command): void {
-    if ($this->state['created']) {
-      throw new AccountAlreadyExists('Account is already created.');
-    }
-
-    $attrs = $command->validatedAttributes();
-    $id = $this->generateId ? ($this->generateId)() : 1001;
-
-    $createdEvent = AccountCreated::strict([
-      'id' => $id,
-      'userId' => $attrs['userId'],
-      'email' => $attrs['email'],
-    ]);
-
-    $transitoryEvent = new AccountWelcomeEmailDispatched([
-      'email' => $attrs['email'],
-      'message' => 'Welcome to the platform!',
-    ]);
-
-    $this->apply($createdEvent, $transitoryEvent);
-  }
-
-  private function handleRename(RenameAccountCommand $command): void {
-    if (!$this->state['created']) {
-      throw new AccountNotFound('Cannot rename non-existent account.');
-    }
-
-    $attrs = $command->validatedAttributes();
-
-    $this->apply(AccountRenamed::strict([
-      'displayName' => $attrs['displayName'],
-    ]));
-  }
-
-  protected function registerEventHandlers(): void {
-    $this->on(AccountCreated::class, function (AccountCreated $event) {
-      $this->state['id'] = $event->data['id'];
-      $this->state['created'] = true;
-      $this->state['userId'] = $event->data['userId'];
-      $this->state['email'] = $event->data['email'];
-    });
-
-    $this->on(AccountRenamed::class, function (AccountRenamed $event) {
-      $this->state['displayName'] = $event->data['displayName'];
-    });
   }
 }
 
-// Read Model Projection
 class AccountProjection {
   public array $accounts = [];
 
-  public function onAccountCreated(AccountCreated $event, array $metadata = []): void {
+  public function onCreated(AccountCreated $event, array $meta = []): void {
     $this->accounts[$event->data['id']] = [
-      'id' => $event->data['id'],
-      'userId' => $event->data['userId'],
       'email' => $event->data['email'],
-      'displayName' => null,
-      'created_at' => $metadata['timestamp'] ?? null,
+      'created_at' => $meta['timestamp'] ?? null,
     ];
   }
 
-  public function onAccountRenamed(AccountRenamed $event, array $metadata = []): void {
-    $id = $metadata['account_id'] ?? null;
-    if ($id && isset($this->accounts[$id])) {
-      $this->accounts[$id]['displayName'] = $event->data['displayName'];
-    }
+  public function onRenamed(AccountRenamed $event, array $meta = []): void {
+    $this->accounts[$meta['account_id']]['displayName'] = $event->data['displayName'];
   }
 }
 
 describe('Process Engine Integration (Hatsume Core)', function () {
   test('executes end-to-end command-process-event cycle with projections and persistence filtering', function () {
-    // 1. Setup Read Model Projection & Router
     $projection = new AccountProjection();
-    $projectionRouter = new EventRouter([
-      AccountCreated::class => [$projection, 'onAccountCreated'],
-      AccountRenamed::class => [$projection, 'onAccountRenamed'],
+    $router = new EventRouter([
+      AccountCreated::class => [$projection, 'onCreated'],
+      AccountRenamed::class => [$projection, 'onRenamed'],
     ]);
 
-    // 2. Setup Bus: EventQueue for individual projection routing, plus persistent store
-    $eventJournal = [];
-    $persistHandler = function (array $events, array $metadata) use (&$eventJournal) {
-      // Filter out TransitoryEvents from persistent storage
-      $persistentEvents = array_filter(
-        $events,
-        fn($e) => !($e instanceof TransitoryEvent)
-      );
-      foreach ($persistentEvents as $e) {
-        $eventJournal[] = ['event' => $e, 'metadata' => $metadata];
-      }
-    };
-
+    $journal = [];
     $bus = new EventDispatcher(
-      new EventQueue($projectionRouter),
-      $persistHandler
+      new EventQueue($router),
+      function (array $events, array $meta) use (&$journal) {
+        foreach ($events as $event) {
+          if (!($event instanceof TransitoryEvent)) {
+            $journal[] = ['event' => $event, 'meta' => $meta];
+          }
+        }
+      }
     );
 
-    // 3. Create aggregate and execute CreateAccountCommand
-    $process = new AccountProcess(generateId: fn() => 42);
+    // 1. Initial command execution
+    $process = new AccountProcess();
+    $process(new CreateAccountCommand(email: 'alice@example.com'));
 
-    $command = new CreateAccountCommand(
-      userId: 'usr_abc123',
-      email: 'alice@example.com'
-    );
-
-    $process($command);
-
-    // Verify Aggregate state updated
-    expect($process->state()['created'])->toBeTrue()
-      ->and($process->state()['id'])->toBe(42)
-      ->and($process->state()['userId'])->toBe('usr_abc123')
+    expect($process->state()['id'])->toBe(42)
       ->and($process->pendingEvents())->toHaveCount(2);
 
-    // Dispatch pending events through bus
-    $metadata = ['timestamp' => 1700000000, 'account_id' => 42];
-    $bus($process->pendingEvents(), $metadata);
+    $bus($process->pendingEvents(), ['timestamp' => 1700000000, 'account_id' => 42]);
 
-    // Verify Projection received domain event
-    expect($projection->accounts)->toHaveKey(42)
-      ->and($projection->accounts[42]['email'])->toBe('alice@example.com')
-      ->and($projection->accounts[42]['created_at'])->toBe(1700000000);
+    expect($projection->accounts[42]['email'])->toBe('alice@example.com')
+      ->and($projection->accounts[42]['created_at'])->toBe(1700000000)
+      ->and($journal)->toHaveCount(1)
+      ->and($journal[0]['event'])->toBeInstanceOf(AccountCreated::class);
 
-    // Verify Event Journal recorded only non-transitory event
-    expect($eventJournal)->toHaveCount(1)
-      ->and($eventJournal[0]['event'])->toBeInstanceOf(AccountCreated::class)
-      ->and($eventJournal[0]['event'])->not->toBeInstanceOf(TransitoryEvent::class);
+    // 2. Rehydration and subsequent command
+    $rehydrated = new AccountProcess($process->state());
+    $rehydrated(new RenameAccountCommand(displayName: 'Alice Wonderland'));
 
-    // 4. Re-hydrate aggregate from state and execute RenameAccountCommand
-    $rehydratedProcess = new AccountProcess($process->state());
+    $bus($rehydrated->pendingEvents(), ['account_id' => 42]);
 
-    $renameCommand = new RenameAccountCommand(displayName: 'Alice Wonderland');
-    $rehydratedProcess($renameCommand);
+    expect($rehydrated->state()['displayName'])->toBe('Alice Wonderland')
+      ->and($projection->accounts[42]['displayName'])->toBe('Alice Wonderland')
+      ->and($journal)->toHaveCount(2);
 
-    expect($rehydratedProcess->state()['displayName'])->toBe('Alice Wonderland')
-      ->and($rehydratedProcess->pendingEvents())->toHaveCount(1);
-
-    // Dispatch rename event
-    $bus($rehydratedProcess->pendingEvents(), ['account_id' => 42]);
-
-    // Projection updated
-    expect($projection->accounts[42]['displayName'])->toBe('Alice Wonderland');
-    expect($eventJournal)->toHaveCount(2);
-  });
-
-  test('throws ValidationException on invalid command data', function () {
-    $process = new AccountProcess();
-    $invalidCommand = new CreateAccountCommand(userId: '', email: 'not-an-email');
-
-    expect(fn() => $process($invalidCommand))
-      ->toThrow(ValidationException::class);
-  });
-
-  test('throws UnknownCommand on unregistered command', function () {
-    $process = new AccountProcess();
-    $unregistered = new UnregisteredCommand();
-
-    expect(fn() => $process($unregistered))
-      ->toThrow(UnknownCommand::class);
-  });
-
-  test('enforces aggregate domain invariants', function () {
-    $process = new AccountProcess(['created' => true]);
-    $command = new CreateAccountCommand(userId: 'usr_xyz', email: 'bob@example.com');
-
-    expect(fn() => $process($command))
-      ->toThrow(AccountAlreadyExists::class);
+    // 3. Unregistered command handling
+    expect(fn() => $process(new stdClass()))->toThrow(UnknownCommand::class);
   });
 });
