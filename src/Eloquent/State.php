@@ -82,27 +82,38 @@ class State extends Model {
   }
 
   /**
-   * Find a model by its primary key (supports composite array, type:id string, or scalar state_id).
+   * Resolve composite key attributes from a structured array.
    *
-   * @param mixed $id
+   * In Slime domain architecture, `type_id` represents the aggregate/process type
+   * discriminator (e.g. 'account', 'project', 'payment:opn:credit-card-transaction').
+   * It exhibits strictly LOW cardinality (bounded by the number of domain processes,
+   * typically dozens to hundreds) and is interned via StateType for memory & index
+   * efficiency. Conversely, `state_id` represents individual instance IDs and exhibits
+   * HIGH cardinality.
+   *
+   * @param array{type?: string, type_id?: int, id?: string|int, state_id?: string|int} $key
+   * @return array{type_id: int, state_id: string}
+   */
+  public static function resolveKey(array $key): array {
+    return [
+      'type_id' => (int)($key['type_id'] ?? StateType::idFor((string)$key['type'])),
+      'state_id' => (string)($key['state_id'] ?? $key['id']),
+    ];
+  }
+
+  /**
+   * Find a model by its composite array primary key.
+   *
+   * @param array{type?: string, type_id?: int, id?: string|int, state_id?: string|int} $id
    * @param list<string> $columns
    * @return static|null
    */
   public static function find($id, $columns = ['*']) {
-    if (is_array($id) && isset($id['type_id'], $id['state_id'])) {
-      return static::where('type_id', $id['type_id'])->where('state_id', (string)$id['state_id'])->first($columns);
-    }
-    if (is_array($id) && (isset($id['type']) || isset($id['type_id'])) && (isset($id['id']) || isset($id['state_id']))) {
-      $type = $id['type_id'] ?? $id['type'];
-      $stateId = $id['state_id'] ?? $id['id'];
-      return static::findByTypeAndId($type, $stateId);
-    }
-    if (is_string($id) && str_contains($id, ':')) {
-      [$type, $stateId] = explode(':', $id, 2);
-      return static::findByTypeAndId($type, $stateId);
-    }
-    if (is_scalar($id)) {
-      return static::where('state_id', (string)$id)->first($columns);
+    if (is_array($id)) {
+      $keys = static::resolveKey($id);
+      return static::where('type_id', $keys['type_id'])
+        ->where('state_id', $keys['state_id'])
+        ->first($columns);
     }
     return parent::find($id, $columns);
   }

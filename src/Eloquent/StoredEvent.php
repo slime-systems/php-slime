@@ -137,34 +137,11 @@ class StoredEvent extends Model {
   /**
    * Resolves raw key input into composite type_id and state_id.
    *
-   * @param mixed $key
+   * @param array{type?: string, type_id?: int, id?: string|int, state_id?: string|int} $key
    * @return array{type_id: int, state_id: string}
    */
-  public static function resolveStateKey(mixed $key): array {
-    if (is_array($key)) {
-      $typeId = $key['type_id'] ?? (isset($key['type']) ? StateType::idFor((string)$key['type']) : null);
-      $stateId = $key['state_id'] ?? $key['id'] ?? null;
-
-      if ($typeId !== null && $stateId !== null) {
-        return [
-          'type_id' => (int)$typeId,
-          'state_id' => (string)$stateId,
-        ];
-      }
-    }
-
-    if (is_string($key) && str_contains($key, ':')) {
-      [$typeName, $id] = explode(':', $key, 2);
-      return [
-        'type_id' => StateType::idFor($typeName),
-        'state_id' => (string)$id,
-      ];
-    }
-
-    return [
-      'type_id' => StateType::idFor('default'),
-      'state_id' => (string)$key,
-    ];
+  public static function resolveStateKey(array $key): array {
+    return State::resolveKey($key);
   }
 
   /**

@@ -77,7 +77,7 @@ describe('StoredEvent Eloquent Model', function () {
     $transitoryEvent = new StoredTestTransitoryEvent(['name' => 'Ephemeral']);
 
     $metadata = [
-      '_state_key' => 'account:456',
+      '_state_key' => ['type' => 'account', 'id' => '456'],
       '_position' => 5,
     ];
 
@@ -85,7 +85,7 @@ describe('StoredEvent Eloquent Model', function () {
 
     expect($count)->toBe(1);
 
-    $records = StoredEvent::forAggregate('account:456')->get();
+    $records = StoredEvent::forAggregate(['type' => 'account', 'id' => '456'])->get();
     expect($records)->toHaveCount(1)
       ->and($records[0]->position)->toBe(5)
       ->and($records[0]->data)->toBe(['name' => 'Persistent']);
@@ -115,11 +115,11 @@ describe('StoredEvent Eloquent Model', function () {
     $original = new StoredTestDomainEvent(['key' => 'val'], ['source' => 'test'], $now);
 
     StoredEvent::persistEvents([$original], [
-      '_state_key' => 'user:999',
+      '_state_key' => ['type' => 'user', 'id' => '999'],
       '_position' => 1,
     ]);
 
-    $stored = StoredEvent::forAggregate('user:999')->first();
+    $stored = StoredEvent::forAggregate(['type' => 'user', 'id' => '999'])->first();
 
     $reconstituted = $stored->toEvent();
 
@@ -129,17 +129,14 @@ describe('StoredEvent Eloquent Model', function () {
       ->and($reconstituted->occurredAt->toIso8601String())->toBe($now->toIso8601String());
   });
 
-  test('resolves state key across array, colon string, and scalar formats', function () {
+  test('resolves state key from structured array', function () {
     $arrayKey = StoredEvent::resolveStateKey(['type' => 'invoice', 'id' => 'inv-1']);
-    $stringKey = StoredEvent::resolveStateKey('invoice:inv-1');
-    $scalarKey = StoredEvent::resolveStateKey('simple-id');
+    $typeIdKey = StoredEvent::resolveStateKey(['type_id' => 42, 'state_id' => 'inv-2']);
 
     $invoiceTypeId = StateType::idFor('invoice');
-    $defaultTypeId = StateType::idFor('default');
 
     expect($arrayKey)->toBe(['type_id' => $invoiceTypeId, 'state_id' => 'inv-1'])
-      ->and($stringKey)->toBe(['type_id' => $invoiceTypeId, 'state_id' => 'inv-1'])
-      ->and($scalarKey)->toBe(['type_id' => $defaultTypeId, 'state_id' => 'simple-id']);
+      ->and($typeIdKey)->toBe(['type_id' => 42, 'state_id' => 'inv-2']);
   });
 
   test('scopeFromPosition filters events starting from position threshold', function () {
@@ -150,11 +147,11 @@ describe('StoredEvent Eloquent Model', function () {
     ];
 
     StoredEvent::persistEvents($events, [
-      '_state_key' => 'stream:1',
+      '_state_key' => ['type' => 'stream', 'id' => '1'],
       '_position' => 10,
     ]);
 
-    $filtered = StoredEvent::forAggregate('stream:1')
+    $filtered = StoredEvent::forAggregate(['type' => 'stream', 'id' => '1'])
       ->fromPosition(11)
       ->get();
 
