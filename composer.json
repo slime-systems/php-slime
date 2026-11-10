@@ -32,7 +32,7 @@
         "illuminate/support": "^10.0 || ^11.0 || ^12.0 || ^13.0",
         "illuminate/validation": "^10.0 || ^11.0 || ^12.0 || ^13.0",
         "paragonie/paseto": "^3.5",
-        "rybakit/msgpack": "^0.11.2",
+        "rybakit/msgpack": "^0.11",
         "slime-systems/object-id": "^1.0"
     },
     "require-dev": {
