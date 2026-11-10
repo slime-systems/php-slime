@@ -2,13 +2,16 @@
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use SlimeSystems\Eloquent\EventType;
 use SlimeSystems\Eloquent\State;
 use SlimeSystems\Eloquent\StateType;
+use SlimeSystems\Eloquent\StoredEvent;
 
 describe('State Eloquent Model', function () {
   beforeEach(function () {
     StateType::clearCache();
     Schema::dropIfExists('process_states');
+    Schema::dropIfExists('stored_events');
     Schema::dropIfExists('state_types');
 
     Schema::create('state_types', function (Blueprint $table) {
@@ -30,20 +33,20 @@ describe('State Eloquent Model', function () {
       ->and($state->getKeyName())->toBe(['type_id', 'state_id'])
       ->and($state->getIncrementing())->toBeFalse()
       ->and($state->state)->toBe([])
-      ->and($state->getState())->toBe([])
       ->and($state->next_position)->toBe(1)
-      ->and($state->getNextPosition())->toBe(1)
-      ->and($state->lock_version)->toBe(0)
-      ->and($state->getLockVersion())->toBe(0);
+      ->and($state->lock_version)->toBe(0);
   });
 
-  test('createBlueprint helper creates table with composite primary key schema', function () {
+  test('createBlueprint helper creates table with composite primary key schema and optional sharding', function () {
     expect(Schema::hasTable('process_states'))->toBeTrue()
       ->and(Schema::hasColumn('process_states', 'type_id'))->toBeTrue()
       ->and(Schema::hasColumn('process_states', 'state_id'))->toBeTrue()
       ->and(Schema::hasColumn('process_states', 'state'))->toBeTrue()
       ->and(Schema::hasColumn('process_states', 'next_position'))->toBeTrue()
       ->and(Schema::hasColumn('process_states', 'lock_version'))->toBeTrue();
+
+    Schema::create('sharded_states', fn($table) => State::createBlueprint($table, sharding: true));
+    expect(Schema::hasColumn('sharded_states', 'query_shard_key'))->toBeTrue();
   });
 
   test('persists and retrieves record with string state_id (e.g. UUID)', function () {
@@ -60,9 +63,9 @@ describe('State Eloquent Model', function () {
 
     $loaded = State::findByTypeAndId('account', 'usr_98a76b5c-4321');
     expect($loaded)->not->toBeNull()
-      ->and($loaded->getTypeId())->toBe($typeId)
-      ->and($loaded->getTypeName())->toBe('account')
-      ->and($loaded->getStateId())->toBe('usr_98a76b5c-4321')
+      ->and($loaded->type_id)->toBe($typeId)
+      ->and($loaded->type_name)->toBe('account')
+      ->and($loaded->state_id)->toBe('usr_98a76b5c-4321')
       ->and($loaded->state)->toBe(['balance' => 500, 'currency' => 'THB'])
       ->and($loaded->next_position)->toBe(5)
       ->and($loaded->lock_version)->toBe(2);
@@ -75,7 +78,7 @@ describe('State Eloquent Model', function () {
 
     $state = new State([
       'type_id' => $typeId,
-      'state_id' => $bigintId,
+      'state_id' => (string)$bigintId,
       'state' => ['total' => 12500],
     ]);
     $state->save();
@@ -83,13 +86,13 @@ describe('State Eloquent Model', function () {
     // Query with integer
     $loadedInt = State::findByTypeAndId('simple-transaction', $bigintId);
     expect($loadedInt)->not->toBeNull()
-      ->and($loadedInt->getStateId())->toBe($bigintId)
+      ->and($loadedInt->state_id)->toBe((string)$bigintId)
       ->and($loadedInt->state)->toBe(['total' => 12500]);
 
     // Query with stringified int
     $loadedStr = State::findByTypeAndId('simple-transaction', (string)$bigintId);
     expect($loadedStr)->not->toBeNull()
-      ->and($loadedStr->getStateId())->toBe($bigintId);
+      ->and($loadedStr->state_id)->toBe((string)$bigintId);
   });
 
   test('supports native save() updates via setKeysForSaveQuery', function () {
@@ -97,7 +100,7 @@ describe('State Eloquent Model', function () {
 
     $state = new State([
       'type_id' => $typeId,
-      'state_id' => 101,
+      'state_id' => '101',
       'state' => ['status' => 'pending'],
     ]);
     $state->save();
@@ -111,7 +114,7 @@ describe('State Eloquent Model', function () {
     expect($reloaded->state['status'])->toBe('paid');
   });
 
-  test('getTypeName resolves string type name via StateType cache', function () {
+  test('typeName resolves string type name via StateType cache', function () {
     $typeId = StateType::idFor('subscription');
 
     $state = new State([
@@ -121,6 +124,20 @@ describe('State Eloquent Model', function () {
     ]);
     $state->save();
 
-    expect($state->getTypeName())->toBe('subscription');
+    expect($state->type_name)->toBe('subscription')
+      ->and($state->getTypeName())->toBe('subscription');
+  });
+
+  test('storedEvents builds query for aggregate event stream', function () {
+    Schema::create('stored_events', fn($table) => StoredEvent::createBlueprint($table));
+    Schema::create('event_types', fn($table) => EventType::createBlueprint($table));
+
+    $state = new State([
+      'type_id' => StateType::idFor('order'),
+      'state_id' => 'ord-99',
+    ]);
+    $state->save();
+
+    expect($state->storedEvents()->toSql())->toContain('stored_events');
   });
 });

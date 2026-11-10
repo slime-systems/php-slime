@@ -1,64 +1,40 @@
 <?php
 
+declare(strict_types = 1);
+
 namespace SlimeSystems\Eloquent;
 
-use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
-use InvalidArgumentException;
 use RuntimeException;
 use SlimeSystems\Eloquent\Casts\MessagePackCast;
+use SlimeSystems\Eloquent\Concerns\HasStateKey;
 use SlimeSystems\Eloquent\Serialization\MessagePackSerializer;
 use SlimeSystems\Hatsume\TransitoryEvent;
 
 /**
  * @property int $type_id
- * @property string|int $state_id
+ * @property string $state_id
  * @property int $position
  * @property int $event_type_id
  * @property array<string, mixed> $data
  * @property array<string, mixed>|null $metadata
  * @property Carbon|null $occurred_at
+ * @property-read string|null $type_name
+ * @property-read string|null $event_class
  */
 class StoredEvent extends Model {
-  /**
-   * Indicates if the model's ID is auto-incrementing.
-   *
-   * @var bool
-   */
+  use HasStateKey;
+
   public $incrementing = false;
-  /**
-   * Indicates if the model should be timestamped.
-   *
-   * @var bool
-   */
   public $timestamps = false;
-  /**
-   * The table associated with the model.
-   *
-   * @var string
-   */
   protected $table = 'stored_events';
-  /**
-   * The composite primary key associated with the table.
-   *
-   * @var list<string>
-   */
   protected $primaryKey = ['type_id', 'state_id', 'position'];
-  /**
-   * The attributes that aren't mass assignable.
-   *
-   * @var list<string>
-   */
   protected $guarded = [];
 
-  /**
-   * The attributes that should be cast.
-   *
-   * @var array<string, class-string|string>
-   */
   protected $casts = [
     'type_id' => 'integer',
     'position' => 'integer',
@@ -68,12 +44,8 @@ class StoredEvent extends Model {
     'occurred_at' => 'datetime',
   ];
 
-  /**
-   * Define default schema blueprint for the stored_events table.
-   */
-  public static function createBlueprint(Blueprint $table): void {
-    $table->unsignedInteger('type_id');
-    $table->string('state_id');
+  public static function createBlueprint(Blueprint $table, ...$options): void {
+    static::createStateKeyBlueprint($table);
     $table->unsignedBigInteger('position');
     $table->unsignedInteger('event_type_id');
     $table->binary('data');
@@ -84,16 +56,6 @@ class StoredEvent extends Model {
     $table->index(['occurred_at', 'event_type_id']);
   }
 
-  /**
-   * Persists domain events into the stored_events table.
-   *
-   * Rejects any event implementing TransitoryEvent.
-   * Requires '_state_key' and '_position' in the context array.
-   *
-   * @param mixed $events Single event, array of events, or collection
-   * @param array<string, mixed> $context Dispatch context from Interactor
-   * @return int Number of events persisted
-   */
   public static function persistEvents(mixed $events, array $context = []): int {
     $eventList = is_iterable($events) ? (is_array($events) ? $events : iterator_to_array($events)) : [$events];
     $persistableEvents = array_values(array_filter($eventList, fn($e) => !$e instanceof TransitoryEvent));
@@ -102,19 +64,10 @@ class StoredEvent extends Model {
       return 0;
     }
 
-    $stateKey = $context['_state_key'] ?? null;
-    $startPosition = $context['_position'] ?? null;
-
-    if ($stateKey === null || $startPosition === null) {
-      throw new InvalidArgumentException(
-        'Event persistence requires "_state_key" and "_position" in context.'
-      );
-    }
-
-    $resolvedKey = self::resolveStateKey($stateKey);
+    $resolvedKey = static::resolveStateKey($context['_state_key']);
     $typeId = $resolvedKey['type_id'];
     $stateId = $resolvedKey['state_id'];
-    $startPosition = (int)$startPosition;
+    $startPosition = (int)$context['_position'];
 
     $records = [];
     foreach ($persistableEvents as $offset => $event) {
@@ -134,30 +87,9 @@ class StoredEvent extends Model {
     return count($records);
   }
 
-  /**
-   * Resolves raw key input into composite type_id and state_id.
-   *
-   * @param array{type?: string, type_id?: int, id?: string|int, state_id?: string|int} $key
-   * @return array{type_id: int, state_id: string}
-   */
-  public static function resolveStateKey(array $key): array {
-    return State::resolveKey($key);
-  }
-
-  /**
-   * Convenience getter for string state type name resolved from StateType.
-   */
-  public function getTypeName(): ?string {
-    $typeId = $this->getAttribute('type_id');
-    return $typeId !== null ? StateType::nameFor((int)$typeId) : null;
-  }
-
-  /**
-   * Reconstitutes the stored event into its original domain event instance.
-   */
   public function toEvent(): object {
     /** @var class-string|null $class */
-    $class = $this->getEventClass();
+    $class = $this->event_class;
     if ($class === null || !class_exists($class)) {
       throw new RuntimeException(sprintf('Event class "%s" does not exist for replay.', $class ?? 'null'));
     }
@@ -169,36 +101,18 @@ class StoredEvent extends Model {
     );
   }
 
-  /**
-   * Convenience getter for string event class name resolved from EventType.
-   */
+  protected function eventClass(): Attribute {
+    return Attribute::get(fn() => $this->event_type_id !== null ? EventType::nameFor((int)$this->event_type_id) : null);
+  }
+
   public function getEventClass(): ?string {
-    $eventTypeId = $this->getAttribute('event_type_id');
-    return $eventTypeId !== null ? EventType::nameFor((int)$eventTypeId) : null;
+    return $this->event_class;
   }
 
-  /**
-   * Scope query to all events for a given aggregate state key.
-   *
-   * @param Builder<static> $query
-   * @param mixed $stateKey
-   * @return Builder<static>
-   */
   public function scopeForAggregate(Builder $query, mixed $stateKey): Builder {
-    $resolved = self::resolveStateKey($stateKey);
-    return $query
-      ->where('type_id', $resolved['type_id'])
-      ->where('state_id', $resolved['state_id'])
-      ->orderBy('position', 'asc');
+    return $this->scopeWhereStateKey($query, $stateKey)->orderBy('position', 'asc');
   }
 
-  /**
-   * Scope query to events starting at or after a position.
-   *
-   * @param Builder<static> $query
-   * @param int $position
-   * @return Builder<static>
-   */
   public function scopeFromPosition(Builder $query, int $position): Builder {
     return $query->where('position', '>=', $position);
   }

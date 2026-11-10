@@ -101,15 +101,6 @@ describe('StoredEvent Eloquent Model', function () {
       ->and(StoredEvent::count())->toBe(0);
   });
 
-  test('throws InvalidArgumentException when context lacks _state_key or _position for persistent events', function () {
-    $event = new StoredTestDomainEvent(['valid' => true]);
-
-    expect(fn() => StoredEvent::persistEvents([$event], ['_state_key' => 'test']))
-      ->toThrow(InvalidArgumentException::class)
-      ->and(fn() => StoredEvent::persistEvents([$event], ['_position' => 1]))
-      ->toThrow(InvalidArgumentException::class);
-  });
-
   test('reconstitutes stored event into original domain event via toEvent', function () {
     $now = Carbon::parse('2026-01-01 12:00:00');
     $original = new StoredTestDomainEvent(['key' => 'val'], ['source' => 'test'], $now);

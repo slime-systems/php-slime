@@ -46,14 +46,9 @@ class EventReplayer {
     int      $chunkSize = 500,
   ): int {
     $modelClass = is_string($this->model) ? $this->model : $this->model::class;
-    $resolvedKey = $modelClass::resolveStateKey($stateKey);
 
     /** @var Builder<StoredEvent> $query */
-    $query = $modelClass::query()
-      ->where('type_id', $resolvedKey['type_id'])
-      ->where('state_id', $resolvedKey['state_id'])
-      ->where('position', '>=', $fromPosition)
-      ->orderBy('position', 'asc');
+    $query = $modelClass::forAggregate($stateKey)->fromPosition($fromPosition);
 
     if ($toPosition !== null) {
       $query->where('position', '<=', $toPosition);
