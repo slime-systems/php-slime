@@ -2,9 +2,9 @@
 
 declare(strict_types = 1);
 
-use SlimeSystems\Tokens\TokenException;
 use SlimeSystems\Tokens\State\ContinuationToken;
 use SlimeSystems\Tokens\State\OpaqueToken;
+use SlimeSystems\Tokens\TokenException;
 
 describe('OpaqueToken & ContinuationToken (PASETO v4.local)', function () {
   $secret = 'super-secret-system-encryption-key-32!';

@@ -33,6 +33,20 @@ class DummyProcess {
     ], $initialState);
   }
 
+  protected function registerEventHandlers(): void {
+    $this->on(OrderItemAdded::class, function (OrderItemAdded $event) {
+      $this->state['items_count']++;
+    });
+
+    $this->on(OrderSubmitted::class, function (OrderSubmitted $event) {
+      $this->state['status'] = 'submitted';
+    });
+
+    $this->on(OrderCancelled::class, function (OrderCancelled $event) {
+      $this->state['status'] = 'cancelled';
+    });
+  }
+
   public function addItem(): void {
     $this->apply(new OrderItemAdded());
   }
@@ -52,20 +66,6 @@ class DummyProcess {
   public function applyWithNulls(): void {
     $this->apply(new OrderItemAdded(), null, [new OrderItemAdded(), null]);
   }
-
-  protected function registerEventHandlers(): void {
-    $this->on(OrderItemAdded::class, function (OrderItemAdded $event) {
-      $this->state['items_count']++;
-    });
-
-    $this->on(OrderSubmitted::class, function (OrderSubmitted $event) {
-      $this->state['status'] = 'submitted';
-    });
-
-    $this->on(OrderCancelled::class, function (OrderCancelled $event) {
-      $this->state['status'] = 'cancelled';
-    });
-  }
 }
 
 class SubProcessA {
@@ -75,14 +75,14 @@ class SubProcessA {
     $this->registerEventHandlers();
   }
 
-  public function trigger(): void {
-    $this->apply(new OrderItemAdded());
-  }
-
   protected function registerEventHandlers(): void {
     $this->on(OrderItemAdded::class, function () {
       $this->state['sub'] = 'A';
     });
+  }
+
+  public function trigger(): void {
+    $this->apply(new OrderItemAdded());
   }
 }
 
@@ -93,14 +93,14 @@ class SubProcessB {
     $this->registerEventHandlers();
   }
 
-  public function trigger(): void {
-    $this->apply(new OrderItemAdded());
-  }
-
   protected function registerEventHandlers(): void {
     $this->on(OrderItemAdded::class, function () {
       $this->state['sub'] = 'B';
     });
+  }
+
+  public function trigger(): void {
+    $this->apply(new OrderItemAdded());
   }
 }
 

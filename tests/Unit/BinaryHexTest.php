@@ -10,9 +10,9 @@ use SlimeSystems\Eloquent\Casts\BinaryHexCast;
 use SlimeSystems\Support\BinaryHex;
 
 class TestBinarySession extends Model {
-  protected $table = 'test_binary_sessions';
   public $timestamps = false;
   public $incrementing = false;
+  protected $table = 'test_binary_sessions';
   protected $keyType = 'string';
   protected $guarded = [];
 

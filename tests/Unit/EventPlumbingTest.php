@@ -24,8 +24,12 @@ describe('Event Plumbing (Dispatcher, Queue, Router, BusBridge)', function () {
     $log2 = [];
 
     $dispatcher = new EventDispatcher(
-      function ($events, $meta) use (&$log1) { $log1[] = [$events, $meta]; },
-      function ($events, $meta) use (&$log2) { $log2[] = [$events, $meta]; },
+      function ($events, $meta) use (&$log1) {
+        $log1[] = [$events, $meta];
+      },
+      function ($events, $meta) use (&$log2) {
+        $log2[] = [$events, $meta];
+      },
     );
 
     $e = new PlumbingEventA(['id' => 1]);
@@ -41,8 +45,12 @@ describe('Event Plumbing (Dispatcher, Queue, Router, BusBridge)', function () {
     $receivedB = [];
 
     $router = new EventRouter([
-      PlumbingEventA::class => function ($e, $meta) use (&$receivedA) { $receivedA[] = [$e->data, $meta]; },
-      PlumbingEventB::class => function ($e, $meta) use (&$receivedB) { $receivedB[] = [$e->data, $meta]; },
+      PlumbingEventA::class => function ($e, $meta) use (&$receivedA) {
+        $receivedA[] = [$e->data, $meta];
+      },
+      PlumbingEventB::class => function ($e, $meta) use (&$receivedB) {
+        $receivedB[] = [$e->data, $meta];
+      },
     ]);
 
     $queue = new EventQueue($router);
@@ -50,7 +58,9 @@ describe('Event Plumbing (Dispatcher, Queue, Router, BusBridge)', function () {
     $events = [
       new PlumbingEventA(['val' => 10]),
       new PlumbingEventB(['val' => 20]),
-      new class { use Event; }, // unhandled event safely ignored
+      new class {
+        use Event;
+      }, // unhandled event safely ignored
     ];
 
     $queue($events, ['batch' => 'b1']);

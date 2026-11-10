@@ -12,7 +12,7 @@ class StaleRecordException extends RapidException implements ConcurrentWriteDete
 
   public function __construct(
     string $message = 'Concurrent write detected for state record.',
-    mixed ...$metadata,
+    mixed  ...$metadata,
   ) {
     $metadata['message'] = $message;
     parent::__construct(self::CONCURRENT_WRITE, ...$metadata);

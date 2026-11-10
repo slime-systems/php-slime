@@ -116,9 +116,24 @@ class Interactor {
   }
 
   /**
+   * Resolves raw key input into database column attributes.
+   *
+   * @param class-string<Model> $modelClass
+   * @return array<string, mixed>
+   */
+  private function resolveKeyAttributes(mixed $key, string $modelClass): array {
+    if (is_subclass_of($modelClass, State::class) || $modelClass === State::class) {
+      return State::resolveKey($key);
+    }
+
+    return is_array($key) ? $key : [new $modelClass()->getKeyName() => $key];
+  }
+
+  /**
    * Persists new or existing model with optimistic locking.
    *
    * @param array<string, mixed> $keyAttributes
+   * @throws StaleRecordException
    */
   private function persistRecord(Model $record, array $keyAttributes): void {
     if (!$record->exists) {
@@ -151,19 +166,5 @@ class Interactor {
     }
 
     $record->lock_version = $lockVersion + 1;
-  }
-
-  /**
-   * Resolves raw key input into database column attributes.
-   *
-   * @param class-string<Model> $modelClass
-   * @return array<string, mixed>
-   */
-  private function resolveKeyAttributes(mixed $key, string $modelClass): array {
-    if (is_subclass_of($modelClass, State::class) || $modelClass === State::class) {
-      return State::resolveKey($key);
-    }
-
-    return is_array($key) ? $key : [(new $modelClass())->getKeyName() => $key];
   }
 }
